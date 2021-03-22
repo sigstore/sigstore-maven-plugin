@@ -21,10 +21,10 @@
         <version>@project.version@</version>
         <executions>
           <execution>
-            <id>touch</id>
-            <phase>validate</phase>
+            <id>sign</id>
+            <phase>package</phase>
             <goals>
-              <goal>touch</goal>
+              <goal>sign</goal>
             </goals>
           </execution>
         </executions>

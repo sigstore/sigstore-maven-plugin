@@ -5,7 +5,7 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>sigstore.plugin</groupId>
+  <groupId>dev.sigstore</groupId>
   <artifactId>sigstore-maven-plugin</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
@@ -20,8 +20,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>1.15</maven.compiler.source>
-    <maven.compiler.target>1.15</maven.compiler.target>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
     <maven.version>3.3.9</maven.version>
   </properties>
 
@@ -92,6 +92,11 @@
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-oauth2</artifactId>
       <version>v2-rev157-1.25.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.http-client</groupId>
+      <artifactId>google-http-client-apache-v2</artifactId>
+      <version>1.39.1</version>
     </dependency>
   </dependencies>
 

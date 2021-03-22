@@ -16,6 +16,8 @@ limitations under the License.
 package sigstore.plugin;
 
 
+import org.apache.http.conn.ssl.AllowAllHostnameVerifier;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 
@@ -23,22 +25,28 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.net.URL;
 import java.security.cert.CertPath;
 import java.security.cert.CertificateFactory;
 import java.security.spec.ECGenParameterSpec;
+import java.security.cert.X509Certificate;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.ZipFile;
 
 import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
+import com.google.api.client.auth.oauth2.BearerToken;
+import com.google.api.client.auth.oauth2.ClientParametersAuthentication;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.auth.oauth2.CredentialRefreshListener;
 import com.google.api.client.auth.oauth2.TokenErrorResponse;
@@ -50,10 +58,13 @@ import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.json.JsonFactory;
+import com.google.api.client.util.PemReader;
+import com.google.api.client.util.PemReader.Section;
 import com.google.api.client.util.store.DataStoreFactory;
 import com.google.api.client.util.store.MemoryDataStoreFactory;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.List;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
@@ -62,6 +73,7 @@ import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.apache.v2.ApacheHttpTransport;
 import com.google.api.client.http.json.JsonHttpContent;
 import com.google.api.client.json.gson.GsonFactory;
 
@@ -78,16 +90,40 @@ import jdk.security.jarsigner.JarSigner;
 @Mojo( name = "sign", defaultPhase = LifecyclePhase.PACKAGE )
 public class Sign extends AbstractMojo {
     /**
-     * Location of the JAR file.
+     * Location of the input JAR file.
      */
-    @Parameter( defaultValue = "${project.build.directory}", property = "jarToSign", required = true )
+    @Parameter( property = "jarToSign", required = true )
     private File jarToSign;
+
+    /**
+     * Location of the signed JAR file.
+     */
+    @Parameter( property = "outputFile", required = true )
+    private File outputFile;
 
     /**
      * URL of Fulcio instance
      */
-    @Parameter( defaultValue = "https://fulcio.sigstore.dev", property = "fulcioInstanceURL", required = true )
+    @Parameter( defaultValue = "https://fulcio.rekor.dev", property = "fulcioInstanceURL", required = true )
     private URL fulcioInstanceURL;
+
+    /**
+     * Client ID for OIDC Identity Provider
+     */
+    @Parameter( defaultValue = "fulcio", property = "fulcioClientID", required = true )
+    private String fulcioClientID;
+
+    /**
+     * URL of OIDC Identity Provider Authorization endpoint
+     */
+    @Parameter( defaultValue = "https://fulcio.rekor.dev/auth/auth", property = "fulcioAuthURL", required = true )
+    private URL fulcioAuthURL;
+
+    /**
+     * URL of OIDC Identity Provider Token endpoint
+     */
+    @Parameter( defaultValue = "https://fulcio.rekor.dev/auth/token", property = "fulcioTokenURL", required = true )
+    private URL fulcioTokenURL;
 
     /**
      * URL of Rekor instance
@@ -121,48 +157,25 @@ public class Sign extends AbstractMojo {
         // do OIDC dance, get ID token
         try {
             JsonFactory jsonFactory = new GsonFactory();
-            HttpTransport oauth2Transport = GoogleNetHttpTransport.newTrustedTransport();
-
-            LocalServerReceiver lsr = new LocalServerReceiver();
-
-            GoogleClientSecrets clientSecrets = new GoogleClientSecrets();
-            String clientId = "fulcio";
-            String tokenURL = fulcioInstanceURL+"/auth/auth";
-            String authURL = fulcioInstanceURL+"/auth/token";
-            Map<String, Object> clientSecretContent = new HashMap<>();
-            clientSecretContent.put("client_id",clientId);
-            clientSecretContent.put("auth_uri",authURL);
-            clientSecretContent.put("token_uri",tokenURL);
-            clientSecretContent.put("redirect_uris",List.of(lsr.getRedirectUri()));
-            clientSecrets.set("installed", clientSecretContent);
+            HttpTransport apacheTransport = new ApacheHttpTransport(ApacheHttpTransport.newDefaultHttpClientBuilder()
+                .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE).build());
 
             DataStoreFactory MEMORY_STORE_FACTORY = new MemoryDataStoreFactory();
 
-            GoogleAuthorizationCodeFlow.Builder flowBuilder = new GoogleAuthorizationCodeFlow.Builder(
-                oauth2Transport, jsonFactory, clientSecrets, List.of("openid", "email"))
-                .setDataStoreFactory(new MemoryDataStoreFactory())
-                .setAccessType("online")
-                .setCredentialCreatedListener(new AuthorizationCodeFlow.CredentialCreatedListener() {
-                    @Override
-                    public void onCredentialCreated(Credential credential, TokenResponse tokenResponse) throws IOException {
-                    MEMORY_STORE_FACTORY.getDataStore("user").set("id_token", tokenResponse.get("id_token").toString());
-                }})
-                .addRefreshListener(new CredentialRefreshListener() {
-                    @Override
-                    public void onTokenResponse(Credential credential, TokenResponse tokenResponse) throws IOException {
+            AuthorizationCodeFlow.Builder flowBuilder = new AuthorizationCodeFlow.Builder(
+                BearerToken.authorizationHeaderAccessMethod(), apacheTransport, jsonFactory,
+                new GenericUrl(fulcioTokenURL.toString()), new ClientParametersAuthentication(fulcioClientID, null),
+                fulcioClientID, fulcioAuthURL.toString())
+                    .enablePKCE()
+                    .setScopes(List.of("openid","email"))
+                    .setCredentialCreatedListener(new AuthorizationCodeFlow.CredentialCreatedListener() {
+                        @Override
+                        public void onCredentialCreated(Credential credential, TokenResponse tokenResponse) throws IOException {
                         MEMORY_STORE_FACTORY.getDataStore("user").set("id_token", tokenResponse.get("id_token").toString());
-                    }
+                    }});
+            AuthorizationCodeInstalledApp app = new AuthorizationCodeInstalledApp(flowBuilder.build(), new LocalServerReceiver());
 
-                    @Override
-                    public void onTokenErrorResponse(Credential credential, TokenErrorResponse tokenErrorResponse) throws IOException {
-                        //handle token error response
-                    }
-                });
-            flowBuilder.enablePKCE();
-            GoogleAuthorizationCodeFlow flow = flowBuilder.build();
-            AuthorizationCodeInstalledApp app = new AuthorizationCodeInstalledApp(flow, lsr);
-
-            app.authorize(null);
+            app.authorize("user");
 
             String idTokenString = (String) MEMORY_STORE_FACTORY.getDataStore("user").get("id_token");
             //verify idToken
@@ -175,28 +188,39 @@ public class Sign extends AbstractMojo {
             String publicKeyB64 = Base64.getEncoder().encodeToString(keypair.getPublic().getEncoded());
             Map<String, Object> fulcioPostContent = new HashMap<>();
             Map<String, Object> publicKeyContent = new HashMap<>();
-            publicKeyContent.put("algorithm","ecdsa");
             publicKeyContent.put("content", publicKeyB64);
+            publicKeyContent.put("algorithm","ecdsa");
 
-            fulcioPostContent.put("publicKey",publicKeyContent);
             fulcioPostContent.put("signedEmailAddress",signedEmail);
+            fulcioPostContent.put("publicKey",publicKeyContent);
             JsonHttpContent jsonContent = new JsonHttpContent(new GsonFactory(), fulcioPostContent);
-
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            jsonContent.writeTo(stream);
+            
             HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-            GenericUrl fulcioPostUrl = new GenericUrl(fulcioInstanceURL+"/api/v1/signingCert");
+            GenericUrl fulcioPostUrl = new GenericUrl("http://localhost:5555/api/v1/signingCert");
             HttpRequest req = httpTransport.createRequestFactory().buildPostRequest(fulcioPostUrl, jsonContent);
-            HttpHeaders reqHeaders = new HttpHeaders();
 
-            reqHeaders.set("Authorization", "Bearer "+idTokenString);
-            req.setHeaders(reqHeaders);
+            req.getHeaders().set("Accept", "application/pem-certificate-chain");
+            req.getHeaders().set("Authorization", "Bearer "+idTokenString);
 
             HttpResponse resp = req.execute();
             if (resp.getStatusCode() != 201) {
                 throw new Exception("bad response from fulcio: "+resp.parseAsString());
             }
-            
+
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            CertPath cert = cf.generateCertPath(resp.getContent());
+            ArrayList<X509Certificate> certList = new ArrayList<X509Certificate>();
+            PemReader pemReader = new PemReader(new InputStreamReader(resp.getContent()));
+            while (true) {
+                Section section = pemReader.readNextSection();
+                if (section == null) {
+                    break;
+                }
+                certList.add((X509Certificate)cf.generateCertificate(new ByteArrayInputStream(section.getBase64DecodedBytes())));
+            }
+
+            CertPath cert = cf.generateCertPath(certList);
 
             // sign JAR using keypair
             JarSigner js = new JarSigner.Builder(keypair.getPrivate(), cert)
@@ -204,18 +228,19 @@ public class Sign extends AbstractMojo {
                 .signatureAlgorithm("SHA256withECDSA")
                 .build();
             try (ZipFile in = new ZipFile(jarToSign);
-                FileOutputStream out = new FileOutputStream(jarToSign)) {
+                FileOutputStream out = new FileOutputStream(outputFile)) {
                     js.sign(in, out);
                 }
             // extract signature, submit to rekor
         } catch (Exception e){
+            getLog().error(e);
             throw new MojoExecutionException("Error posting to fulcio:", e);
         }
     }
 
     private KeyPair generateKeyPair() throws Exception {
-        ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1");
-        KeyPairGenerator g = KeyPairGenerator.getInstance("EdDSA");
+        ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp384r1");
+        KeyPairGenerator g = KeyPairGenerator.getInstance("EC");
         g.initialize(ecSpec, new SecureRandom());
         return g.generateKeyPair();
     }
@@ -224,6 +249,6 @@ public class Sign extends AbstractMojo {
         Signature sig = Signature.getInstance("SHA256withECDSA");
         sig.initSign(keypair.getPrivate());
         sig.update(emailAddress.getBytes());
-        return Base64.getUrlEncoder().encodeToString(sig.sign());
+        return Base64.getEncoder().encodeToString(sig.sign());
     }
 }
