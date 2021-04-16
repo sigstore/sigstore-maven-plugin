@@ -15,9 +15,10 @@ limitations under the License.
 */
 package sigstore.plugin;
 
+import org.apache.commons.io.output.TeeOutputStream;
 
-import org.apache.http.conn.ssl.AllowAllHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 
@@ -29,34 +30,35 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.net.URL;
 import java.security.cert.CertPath;
 import java.security.cert.CertificateFactory;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.cert.X509Certificate;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.zip.ZipFile;
 
 import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
 import com.google.api.client.auth.oauth2.BearerToken;
 import com.google.api.client.auth.oauth2.ClientParametersAuthentication;
 import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.auth.oauth2.CredentialRefreshListener;
-import com.google.api.client.auth.oauth2.TokenErrorResponse;
 import com.google.api.client.auth.oauth2.TokenResponse;
 import com.google.api.client.auth.openidconnect.IdToken;
 import com.google.api.client.auth.openidconnect.IdTokenVerifier;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
 import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
-import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.util.PemReader;
 import com.google.api.client.util.PemReader.Section;
@@ -67,9 +69,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.List;
 
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
@@ -92,80 +92,221 @@ public class Sign extends AbstractMojo {
     /**
      * Location of the input JAR file.
      */
-    @Parameter( property = "jarToSign", required = true )
-    private File jarToSign;
+    @Parameter( property = "input-jar", required = true )
+    private File inputJar;
 
     /**
-     * Location of the signed JAR file.
+     * Location of the signed JAR file; defaults to overwriting the input file with the signed JAR
      */
-    @Parameter( property = "outputFile", required = true )
-    private File outputFile;
+    @Parameter( property = "output-signed-jar" )
+    private File outputSignedJar;
+
+    /**
+     * Location of the code signing certificate (including public key) used to verify signature
+     */
+    @Parameter( property = "output-signing-cert", required = true )
+    private File outputSigningCert;
+
+    /**
+     * Signing algorithm to be used; default is ECDSA
+     */
+    @Parameter( defaultValue = "sigstore", property = "signer-name", required = true )
+    private String signerName;
+
+    /**
+     * Signing algorithm to be used; default is ECDSA
+     */
+    @Parameter( defaultValue = "EC", property = "signing-algorithm", required = true )
+    private String signingAlgorithm;
+
+    /**
+     * Signing algorithm specification to be used; default is secp256r1
+     */
+    @Parameter( defaultValue = "secp256r1", property = "signing-algorithm-spec", required = true )
+    private String signingAlgorithmSpec;
+
+    /**
+     * Enable/disable SSL hostname verification
+     */
+    @Parameter( defaultValue = "true", property = "ssl-verification", required = true )
+    private boolean sslVerfication;
 
     /**
      * URL of Fulcio instance
      */
-    @Parameter( defaultValue = "https://fulcio.rekor.dev", property = "fulcioInstanceURL", required = true )
+    @Parameter( defaultValue = "https://fulcio.sigstore.dev", property = "fulcio-instance-url", required = true )
     private URL fulcioInstanceURL;
+
+    /**
+     * Use browser-less OAuth Device Code flow instead of opening local browser
+     */
+    @Parameter( defaultValue = "false", property = "oidc-device-code", required = true )
+    private boolean oidcDeviceCodeFlow;
 
     /**
      * Client ID for OIDC Identity Provider
      */
-    @Parameter( defaultValue = "fulcio", property = "fulcioClientID", required = true )
-    private String fulcioClientID;
+    @Parameter( defaultValue = "sigstore", property = "oidc-client-id", required = true )
+    private String oidcClientID;
 
     /**
      * URL of OIDC Identity Provider Authorization endpoint
      */
-    @Parameter( defaultValue = "https://fulcio.rekor.dev/auth/auth", property = "fulcioAuthURL", required = true )
-    private URL fulcioAuthURL;
+    @Parameter( defaultValue = "https://oauth2.sigstore.dev/auth/auth", property = "oidc-auth-url", required = true )
+    private URL oidcAuthURL;
 
     /**
      * URL of OIDC Identity Provider Token endpoint
      */
-    @Parameter( defaultValue = "https://fulcio.rekor.dev/auth/token", property = "fulcioTokenURL", required = true )
-    private URL fulcioTokenURL;
+    @Parameter( defaultValue = "https://oauth2.sigstore.dev/auth/token", property = "oidc-token-url", required = true )
+    private URL oidcTokenURL;
+
+    /**
+     * URL of OIDC Identity Provider Device Code endpoint
+     */
+    @Parameter( defaultValue = "https://oauth2.sigstore.dev/auth/device/code", property = "oidc-device-code-url", required = true )
+    private URL oidcDeviceCodeURL;
 
     /**
      * URL of Rekor instance
      */
-    @Parameter( defaultValue = "https://rekor.sigstore.dev", property = "rekorInstanceURL", required = true )
+    @Parameter( defaultValue = "https://rekor.sigstore.dev", property = "rekor-instance-url", required = true )
     private URL rekorInstanceURL;
 
     /**
      * Email address of signer
      */
-    @Parameter( property = "emailAddress", required = true )
+    @Parameter( property = "email-address", required = true )
     private String emailAddress;
+
+    /**
+     * URL of Trusted Timestamp Authority (RFC3161 compliant)
+     */
+    @Parameter( defaultValue = "http://timestamp.digicert.com", property = "tsa-url", required = true )
+    private URL tsaURL;
 
     public void execute() throws MojoExecutionException {
         //generate keypair
         KeyPair keypair;
         try {
-            keypair = this.generateKeyPair();
+            keypair = generateKeyPair();
         } catch (Exception e) {
+            getLog().error(e);
             throw new MojoExecutionException("Error creating keypair:", e);
         }
 
-        // get email address, sign with private key
-        String signedEmail;
+        // do OIDC dance, get ID token
+        String rawIdToken = "";
         try {
-            signedEmail = this.signEmailAddress(emailAddress, keypair);
+            rawIdToken = getIDToken(emailAddress);
         } catch (Exception e) {
-            throw new MojoExecutionException("Error signing email address: ", e);
+            getLog().error(e);
+            throw new MojoExecutionException(String.format("Error authenticating for %s:", emailAddress), e);
         }
 
-        // do OIDC dance, get ID token
+        // sign email address with private key
+        String signedEmail = "";
         try {
-            JsonFactory jsonFactory = new GsonFactory();
-            HttpTransport apacheTransport = new ApacheHttpTransport(ApacheHttpTransport.newDefaultHttpClientBuilder()
-                .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE).build());
+            signedEmail = signEmailAddress(emailAddress, keypair.getPrivate());
+        } catch (Exception e) {
+            getLog().error(e);
+            throw new MojoExecutionException("Error signing email address:", e);
+        }
 
-            DataStoreFactory MEMORY_STORE_FACTORY = new MemoryDataStoreFactory();
+        // push to fulcio, get signing cert chain
+        CertPath certs = null;
+        try {
+            certs = getSigningCert(signedEmail, keypair.getPublic(), rawIdToken);
+        } catch (Exception e) {
+            getLog().error(e);
+            throw new MojoExecutionException(String.format("Error obtaining signing certificate from Fulcio @%s:",
+                                             fulcioInstanceURL), e);
+        }
 
+        // sign JAR file here
+        byte[] jarBytes = null;
+        try {
+            jarBytes = signJarFile(keypair.getPrivate(), certs);
+        } catch (Exception e) {
+            getLog().error(e);
+            throw new MojoExecutionException(String.format("Error signing JAR file '%s':", inputJar.getAbsolutePath()), e);
+        }
+
+        // write signing certificate to file
+        try {
+            writeSigningCertToFile(certs);
+        } catch (Exception e) {
+            getLog().error(e);
+            throw new MojoExecutionException(String.format("Error writing signing certificate to file '%s':", outputSigningCert.getAbsolutePath()), e);
+        }
+
+        // submit jar to rekor
+        URL rekorEntryUrl = null;
+        try {
+            rekorEntryUrl = submitToRekor(jarBytes);
+        } catch (Exception e) {
+            getLog().error(e);
+            throw new MojoExecutionException(String.format("Error in submitting entry to Rekor @ %s:", rekorInstanceURL), e);
+        }
+        getLog().info(String.format("Created entry in transparency log for JAR @ '%s'", rekorEntryUrl));
+
+        // verify JAR
+    }
+
+    // generateKeyPair creates a keypair according to the plugin parameters specified
+    private KeyPair generateKeyPair() throws Exception {
+        getLog().info(String.format("generating keypair using %s with %s parameters", signingAlgorithm, signingAlgorithmSpec));
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance(signingAlgorithm);
+        AlgorithmParameterSpec aps = null;
+        switch(signingAlgorithm) {
+            case "EC":
+                aps = new ECGenParameterSpec(signingAlgorithmSpec);
+                break;
+            default:
+                throw new Exception(String.format("unable to create signing algorithm spec for signing algorithm %s", signingAlgorithm));
+        }
+        kpg.initialize(aps, new SecureRandom());
+        return kpg.generateKeyPair();
+    }
+
+    // signEmailAddress returns a base64 encoded String representing the signature of the specified email address using the provided keypair
+    private String signEmailAddress(String emailAddress, PrivateKey privKey) throws Exception {
+        getLog().info(String.format("signing email address '%s' as proof of possession of private key", emailAddress));
+        Signature sig = null;
+        switch(signingAlgorithm) {
+            case "EC":
+                sig = Signature.getInstance("SHA256withECDSA");
+                break;
+            default:
+                throw new Exception(String.format("unable to generate signature for signing algorithm %s", signingAlgorithm));
+        }
+        sig.initSign(privKey);
+        sig.update(emailAddress.getBytes());
+        return Base64.getEncoder().encodeToString(sig.sign());
+    }
+
+    private HttpTransport getHttpTransport() {
+        HttpClientBuilder hcb = ApacheHttpTransport.newDefaultHttpClientBuilder();
+        if (!sslVerfication) {
+            hcb = hcb.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE);
+        }
+        return new ApacheHttpTransport(hcb.build());
+    }
+
+    // getIDToken returns the raw OIDC Identity token if successfully obtained for the expected email address
+    private String getIDToken(String expectedEmailAddress) throws Exception {
+        JsonFactory jsonFactory = new GsonFactory();
+
+        HttpTransport httpTransport = getHttpTransport();
+
+        DataStoreFactory MEMORY_STORE_FACTORY = new MemoryDataStoreFactory();
+
+        if (!oidcDeviceCodeFlow) {
             AuthorizationCodeFlow.Builder flowBuilder = new AuthorizationCodeFlow.Builder(
-                BearerToken.authorizationHeaderAccessMethod(), apacheTransport, jsonFactory,
-                new GenericUrl(fulcioTokenURL.toString()), new ClientParametersAuthentication(fulcioClientID, null),
-                fulcioClientID, fulcioAuthURL.toString())
+                BearerToken.authorizationHeaderAccessMethod(),
+                httpTransport, jsonFactory, new GenericUrl(oidcTokenURL.toString()),
+                new ClientParametersAuthentication(oidcClientID, null), oidcClientID,
+                oidcAuthURL.toString())
                     .enablePKCE()
                     .setScopes(List.of("openid","email"))
                     .setCredentialCreatedListener(new AuthorizationCodeFlow.CredentialCreatedListener() {
@@ -174,81 +315,158 @@ public class Sign extends AbstractMojo {
                         MEMORY_STORE_FACTORY.getDataStore("user").set("id_token", tokenResponse.get("id_token").toString());
                     }});
             AuthorizationCodeInstalledApp app = new AuthorizationCodeInstalledApp(flowBuilder.build(), new LocalServerReceiver());
-
             app.authorize("user");
-
-            String idTokenString = (String) MEMORY_STORE_FACTORY.getDataStore("user").get("id_token");
-            //verify idToken
-            IdTokenVerifier idTokenVerifier = new IdTokenVerifier();
-            if (idTokenVerifier.verify(IdToken.parse(jsonFactory, idTokenString)) == false ){
-                throw new MojoExecutionException("id token invalid");
-            }
-
-            // push to fulcio, get cert chain
-            String publicKeyB64 = Base64.getEncoder().encodeToString(keypair.getPublic().getEncoded());
-            Map<String, Object> fulcioPostContent = new HashMap<>();
-            Map<String, Object> publicKeyContent = new HashMap<>();
-            publicKeyContent.put("content", publicKeyB64);
-            publicKeyContent.put("algorithm","ecdsa");
-
-            fulcioPostContent.put("signedEmailAddress",signedEmail);
-            fulcioPostContent.put("publicKey",publicKeyContent);
-            JsonHttpContent jsonContent = new JsonHttpContent(new GsonFactory(), fulcioPostContent);
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            jsonContent.writeTo(stream);
-            
-            HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-            GenericUrl fulcioPostUrl = new GenericUrl("http://localhost:5555/api/v1/signingCert");
-            HttpRequest req = httpTransport.createRequestFactory().buildPostRequest(fulcioPostUrl, jsonContent);
-
-            req.getHeaders().set("Accept", "application/pem-certificate-chain");
-            req.getHeaders().set("Authorization", "Bearer "+idTokenString);
-
-            HttpResponse resp = req.execute();
-            if (resp.getStatusCode() != 201) {
-                throw new Exception("bad response from fulcio: "+resp.parseAsString());
-            }
-
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            ArrayList<X509Certificate> certList = new ArrayList<X509Certificate>();
-            PemReader pemReader = new PemReader(new InputStreamReader(resp.getContent()));
-            while (true) {
-                Section section = pemReader.readNextSection();
-                if (section == null) {
-                    break;
-                }
-                certList.add((X509Certificate)cf.generateCertificate(new ByteArrayInputStream(section.getBase64DecodedBytes())));
-            }
-
-            CertPath cert = cf.generateCertPath(certList);
-
-            // sign JAR using keypair
-            JarSigner js = new JarSigner.Builder(keypair.getPrivate(), cert)
-                .digestAlgorithm("SHA-256")
-                .signatureAlgorithm("SHA256withECDSA")
-                .build();
-            try (ZipFile in = new ZipFile(jarToSign);
-                FileOutputStream out = new FileOutputStream(outputFile)) {
-                    js.sign(in, out);
-                }
-            // extract signature, submit to rekor
-        } catch (Exception e){
-            getLog().error(e);
-            throw new MojoExecutionException("Error posting to fulcio:", e);
         }
+        //TODO: add device code flow support
+
+        String idTokenString = (String) MEMORY_STORE_FACTORY.getDataStore("user").get("id_token");
+        
+        IdTokenVerifier idTokenVerifier = new IdTokenVerifier();
+        IdToken parsedIdToken = IdToken.parse(jsonFactory, idTokenString);
+        if (!idTokenVerifier.verify(parsedIdToken)){
+            throw new Exception("id token could not be verified");
+        }
+        
+        String emailFromIDToken = (String)parsedIdToken.getPayload().get("email");
+        Boolean emailVerified = (Boolean)parsedIdToken.getPayload().get("email_verified");
+        if (!emailFromIDToken.equals(expectedEmailAddress)) {
+            throw new Exception(String.format("email in ID token '%s' does not match address specified to plugin '%s'",
+                                              emailFromIDToken, emailAddress));
+        } else if (!emailVerified) {
+            throw new Exception(String.format("identity provider '%s' reports email address '%s' has not been verified",
+                                parsedIdToken.getPayload().getIssuer(), emailAddress));
+        }
+
+        return idTokenString;
     }
 
-    private KeyPair generateKeyPair() throws Exception {
-        ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp384r1");
-        KeyPairGenerator g = KeyPairGenerator.getInstance("EC");
-        g.initialize(ecSpec, new SecureRandom());
-        return g.generateKeyPair();
+    private CertPath getSigningCert(String signedEmail, PublicKey pubKey, String idToken) throws Exception {
+        HttpTransport httpTransport = getHttpTransport();
+
+        String publicKeyB64 = Base64.getEncoder().encodeToString(pubKey.getEncoded());
+        Map<String, Object> fulcioPostContent = new HashMap<>();
+        Map<String, Object> publicKeyContent = new HashMap<>();
+        publicKeyContent.put("content", publicKeyB64);
+        //TODO: look at signingAlgorithm and set accordingly
+        if (pubKey.getAlgorithm() == "EC") {
+            publicKeyContent.put("algorithm","ecdsa");
+        }
+
+        fulcioPostContent.put("signedEmailAddress",signedEmail);
+        fulcioPostContent.put("publicKey",publicKeyContent);
+        JsonHttpContent jsonContent = new JsonHttpContent(new GsonFactory(), fulcioPostContent);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        jsonContent.writeTo(stream);
+        
+        GenericUrl fulcioPostUrl = new GenericUrl(fulcioInstanceURL+"/api/v1/signingCert");
+        HttpRequest req = httpTransport.createRequestFactory().buildPostRequest(fulcioPostUrl, jsonContent);
+
+        req.getHeaders().set("Accept", "application/pem-certificate-chain");
+        req.getHeaders().set("Authorization", "Bearer "+idToken);
+
+        getLog().info("requesting signing certificate");
+        HttpResponse resp = req.execute();
+        getLog().debug(resp.toString());
+        if (resp.getStatusCode() != 201) {
+            throw new Exception(String.format("bad response from fulcio @ '%s' : %s", fulcioPostUrl, resp.parseAsString()));
+        }
+
+        getLog().info("parsing signing certificate");
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        ArrayList<X509Certificate> certList = new ArrayList<X509Certificate>();
+        PemReader pemReader = new PemReader(new InputStreamReader(resp.getContent()));
+        while (true) {
+            Section section = pemReader.readNextSection();
+            if (section == null) {
+                break;
+            }
+
+            byte[] certBytes = section.getBase64DecodedBytes();
+            certList.add((X509Certificate)cf.generateCertificate(new ByteArrayInputStream(certBytes)));
+        }
+        if (certList.size() == 0) {
+            throw new Exception("no certificates were found in response from Fulcio instance");
+        }
+        return cf.generateCertPath(certList);
     }
 
-    private String signEmailAddress(String emailAddress, KeyPair keypair) throws Exception {
-        Signature sig = Signature.getInstance("SHA256withECDSA");
-        sig.initSign(keypair.getPrivate());
-        sig.update(emailAddress.getBytes());
-        return Base64.getEncoder().encodeToString(sig.sign());
+    // signJarFile signs the JAR file with the specified private key, and embeds the cert chain 
+    // Returns: the signed JAR in a byte array
+    private byte[] signJarFile(PrivateKey privKey, CertPath certs) throws Exception {
+        // sign JAR using keypair
+        getLog().info("signing JAR file, writing to " + outputSignedJar.getAbsolutePath());
+        ByteArrayOutputStream memOut = new ByteArrayOutputStream();
+
+        BiConsumer<String, String> progressLogger = (op, entryName) -> getLog().debug(String.format("%s %s", op, entryName));
+        JarSigner.Builder jsb = new JarSigner.Builder(privKey, certs)
+                                    .digestAlgorithm("SHA-256")
+                                    .signatureAlgorithm("SHA256withECDSA")
+                                    .setProperty("internalsf", "true")
+                                    .signerName(signerName)
+                                    .eventHandler(progressLogger);
+                                        
+        if (tsaURL.toString() != "") {
+            jsb = jsb.tsa(tsaURL.toURI());
+        }
+        JarSigner js = jsb.build();
+        ZipFile in = new ZipFile(inputJar);
+        FileOutputStream jarOut = new FileOutputStream(outputSignedJar);
+        TeeOutputStream tee = new TeeOutputStream(jarOut, memOut);
+        js.sign(in, tee);
+
+        getLog().info("finished signing JAR");
+        return memOut.toByteArray();
+    }
+
+    private void writeSigningCertToFile(CertPath certs) throws Exception {
+        getLog().info("writing signing certificate to " + outputSigningCert.getAbsolutePath());
+        Base64.Encoder encoder = Base64.getMimeEncoder(64, System.getProperty("line.separator").getBytes());
+        // we only write the first one, not the entire chain
+        byte[] rawCrtText = certs.getCertificates().get(0).getEncoded();
+        String encodedCertText = new String(encoder.encode(rawCrtText));
+        String prettified_cert = 
+            "-----BEGIN CERTIFICATE-----" + 
+            System.getProperty("line.separator") +
+            encodedCertText + 
+            System.getProperty("line.separator") + 
+            "-----END CERTIFICATE-----";
+
+        if (!outputSigningCert.createNewFile()) {
+            throw new Exception(String.format("file at %s already exists; will not overwrite", outputSigningCert.getAbsolutePath()));
+        }
+        FileWriter fw = new FileWriter(outputSigningCert);
+        fw.write(prettified_cert);
+        fw.close();
+    }
+
+    private URL submitToRekor(byte[] jarBytes) throws Exception {
+        HttpTransport httpTransport = getHttpTransport();
+
+        String jarB64 = Base64.getEncoder().encodeToString(jarBytes);
+        Map<String, Object> rekorPostContent = new HashMap<>();
+        Map<String, Object> specContent = new HashMap<>();
+        Map<String, Object> archiveContent = new HashMap<>();
+        archiveContent.put("content", jarB64);
+        specContent.put("archive", archiveContent);
+
+        rekorPostContent.put("kind","jar");
+        rekorPostContent.put("apiVersion","0.0.1");
+        rekorPostContent.put("spec",specContent);
+        JsonHttpContent rekorJsonContent = new JsonHttpContent(new GsonFactory(), rekorPostContent);
+        ByteArrayOutputStream rekorStream = new ByteArrayOutputStream();
+        rekorJsonContent.writeTo(rekorStream);
+        
+        GenericUrl rekorPostUrl = new GenericUrl(rekorInstanceURL+"/api/v1/log/entries");
+        HttpRequest rekorReq = httpTransport.createRequestFactory().buildPostRequest(rekorPostUrl, rekorJsonContent);
+
+        rekorReq.getHeaders().set("Accept", "application/json");
+        rekorReq.getHeaders().set("Content-Type", "application/json");
+
+        HttpResponse rekorResp = rekorReq.execute();
+        if (rekorResp.getStatusCode() != 201) {
+            throw new Exception("bad response from rekor: "+rekorResp.parseAsString());
+        }
+
+        return new URL(rekorInstanceURL,rekorResp.getHeaders().getLocation());
     }
 }

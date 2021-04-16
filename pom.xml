@@ -98,6 +98,11 @@
       <artifactId>google-http-client-apache-v2</artifactId>
       <version>1.39.1</version>
     </dependency>
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.8.0</version>
+    </dependency>
   </dependencies>
 
   <build>
