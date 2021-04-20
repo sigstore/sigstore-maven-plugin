@@ -1,4 +1,5 @@
 .vscode
+.factorypath
 *.class
 *.jar
 target/
