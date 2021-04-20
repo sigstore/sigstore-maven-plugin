@@ -1,4 +1,4 @@
-package sigstore.plugin;
+package dev.sigstore.plugin;
 
 
 import org.apache.maven.plugin.testing.MojoRule;
@@ -48,6 +48,7 @@ public class SignTest
         File touch = new File( outputDirectory, "touch.txt" );
         assertTrue( touch.exists() );
 */
+        assertTrue(true);
     }
 
     /** Do not need the MojoRule. */
