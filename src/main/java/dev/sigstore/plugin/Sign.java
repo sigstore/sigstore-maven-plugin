@@ -16,6 +16,7 @@
 package dev.sigstore.plugin;
 
 import org.apache.commons.io.output.TeeOutputStream;
+import org.apache.commons.validator.routines.EmailValidator;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -114,7 +115,7 @@ public class Sign extends AbstractMojo {
      * Location of the code signing certificate (including public key) used to
      * verify signature
      */
-    @Parameter(property = "output-signing-cert", required = true)
+    @Parameter(defaultValue = "${project.build.directory}/signingCert.pem", property = "output-signing-cert", required = true)
     private File outputSigningCert;
 
     /**
@@ -184,9 +185,9 @@ public class Sign extends AbstractMojo {
     private URL rekorInstanceURL;
 
     /**
-     * Email address of signer
+     * Email address of signer; if not specified, the email address returned in the OIDC identity token will be used
      */
-    @Parameter(property = "email-address", required = true)
+    @Parameter(property = "email-address")
     private String emailAddress;
 
     /**
@@ -226,7 +227,7 @@ public class Sign extends AbstractMojo {
     * @return      the public and private keypair
     * @throws MojoExecutionException If any exception happened during the key generation process
     */
-    private KeyPair generateKeyPair(String signingAlgorithm, String signingAlgorithmSpec) throws MojoExecutionException {
+    public KeyPair generateKeyPair(String signingAlgorithm, String signingAlgorithmSpec) throws MojoExecutionException {
         getLog().info(String.format("generating keypair using %s with %s parameters", signingAlgorithm,
                 signingAlgorithmSpec));
         try {
@@ -255,11 +256,22 @@ public class Sign extends AbstractMojo {
     * @return      base64 encoded String containing the signature for the provided email address
     * @throws MojoExecutionException If any exception happened during the signing process
     */
-    private String signEmailAddress(String emailAddress, PrivateKey privKey) throws MojoExecutionException {
-        getLog().info(String.format("signing email address '%s' as proof of possession of private key", emailAddress));
+    public String signEmailAddress(String emailAddress, PrivateKey privKey) throws MojoExecutionException {
         try {
+            if (privKey == null) {
+                throw new IllegalArgumentException("private key must be specified");
+            }
+            if (emailAddress == null) {
+                throw new IllegalArgumentException("email address must not be null");
+            } else {
+                EmailValidator ev = EmailValidator.getInstance();
+                if (!ev.isValid(emailAddress)) {
+                    throw new IllegalArgumentException(String.format("email address specified '%s' is invalid", emailAddress));
+                }
+            }
+            getLog().info(String.format("signing email address '%s' as proof of possession of private key", emailAddress));
             Signature sig = null;
-            switch (signingAlgorithm) {
+            switch (privKey.getAlgorithm()) {
             case "EC":
                 sig = Signature.getInstance("SHA256withECDSA");
                 break;
@@ -271,7 +283,7 @@ public class Sign extends AbstractMojo {
             sig.update(emailAddress.getBytes());
             return Base64.getEncoder().encodeToString(sig.sign());
         } catch (Exception e) {
-            throw new MojoExecutionException(String.format("Error authenticating for %s:", emailAddress), e);
+            throw new MojoExecutionException(String.format("Error signing '%s': %s", emailAddress, e.getMessage()), e);
         }
     }
 
@@ -280,7 +292,7 @@ public class Sign extends AbstractMojo {
     *
     * @return transport object with SSL verification enabled/disabled per the plugin parameter <code>sslVerification</code>
     */
-    private HttpTransport getHttpTransport() {
+    public HttpTransport getHttpTransport() {
         HttpClientBuilder hcb = ApacheHttpTransport.newDefaultHttpClientBuilder();
         if (!sslVerfication) {
             hcb = hcb.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE);
@@ -295,7 +307,7 @@ public class Sign extends AbstractMojo {
     * @return      the ID token String (in JWS format)
     * @throws MojoExecutionException If any exception happened during the OIDC authentication flow
     */
-    private String getIDToken(String expectedEmailAddress) throws MojoExecutionException {
+    public String getIDToken(String expectedEmailAddress) throws MojoExecutionException {
         try {
             JsonFactory jsonFactory = new GsonFactory();
             HttpTransport httpTransport = getHttpTransport();
@@ -334,7 +346,7 @@ public class Sign extends AbstractMojo {
 
             String emailFromIDToken = (String) parsedIdToken.getPayload().get("email");
             Boolean emailVerified = (Boolean) parsedIdToken.getPayload().get("email_verified");
-            if (!emailFromIDToken.equals(expectedEmailAddress)) {
+            if (expectedEmailAddress != null && !emailFromIDToken.equals(expectedEmailAddress)) {
                 throw new InvalidObjectException(
                         String.format("email in ID token '%s' does not match address specified to plugin '%s'",
                                 emailFromIDToken, emailAddress));
@@ -343,6 +355,7 @@ public class Sign extends AbstractMojo {
                         String.format("identity provider '%s' reports email address '%s' has not been verified",
                                 parsedIdToken.getPayload().getIssuer(), emailAddress));
             }
+            this.emailAddress = emailFromIDToken;
 
             return idTokenString;
         } catch (Exception e) {
@@ -359,7 +372,7 @@ public class Sign extends AbstractMojo {
     * @return      The certificate chain including the code signing certificate
     * @throws MojoExecutionException If any exception happened during the request for the code signing certificate
     */
-    private CertPath getSigningCert(String signedEmail, PublicKey pubKey, String idToken) throws MojoExecutionException {
+    public CertPath getSigningCert(String signedEmail, PublicKey pubKey, String idToken) throws MojoExecutionException {
         try {
             HttpTransport httpTransport = getHttpTransport();
 
@@ -421,7 +434,7 @@ public class Sign extends AbstractMojo {
     * @return      The signed JAR file in byte array
     * @throws MojoExecutionException If any exception happened during the JAR signing process
     */
-    private byte[] signJarFile(PrivateKey privKey, CertPath certs) throws MojoExecutionException {
+    public byte[] signJarFile(PrivateKey privKey, CertPath certs) throws MojoExecutionException {
         // sign JAR using keypair
         try{
             File jarToSign;
@@ -486,7 +499,7 @@ public class Sign extends AbstractMojo {
     * @param  outputSigningCert The file where the code signing cert should be written to
     * @throws MojoExecutionException If any exception happened during writing the certificate to the specified file
     */
-    private void writeSigningCertToFile(CertPath certs, File outputSigningCert) throws MojoExecutionException {
+    public void writeSigningCertToFile(CertPath certs, File outputSigningCert) throws MojoExecutionException {
         getLog().info("writing signing certificate to " + outputSigningCert.getAbsolutePath());
         try {
             final String lineSeparator = System.getProperty("line.separator");
@@ -517,7 +530,7 @@ public class Sign extends AbstractMojo {
     * @return       The URL where the entry in the transparency log can be seen for this signature/key combination
     * @throws MojoExecutionException If any exception happened during interaction with the Rekor instance
     */
-    private URL submitToRekor(byte[] jarBytes) throws MojoExecutionException {
+    public URL submitToRekor(byte[] jarBytes) throws MojoExecutionException {
         try {
             HttpTransport httpTransport = getHttpTransport();
 
