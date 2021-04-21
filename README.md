@@ -15,11 +15,13 @@ Javadoc can be located at:  INSERT LINK HERE, but you can quickly take advantage
             <goals>
               <goal>sign</goal>
             </goals>
+            <!-- optional configuration parameters; sensible defaults are chosen
             <configuration>
               <emailAddress>YOUR-EMAIL-ADDRESS-HERE</emailAddress>
               <outputSigningCert>signingCert.pem</outputSigningCert>
               <sslVerification>false</sslVerification>
             </configuration>
+            -->
           </execution>
         </executions>
       </plugin>
