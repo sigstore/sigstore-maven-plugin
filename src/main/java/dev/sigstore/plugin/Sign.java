@@ -192,7 +192,7 @@ public class Sign extends AbstractMojo {
     /**
      * URL of Trusted Timestamp Authority (RFC3161 compliant)
      */
-    @Parameter(defaultValue = "http://timestamp.digicert.com", property = "tsa-url", required = true)
+    @Parameter(defaultValue = "https://rekor.sigstore.dev/api/v1/timestamp", property = "tsa-url", required = true)
     private URL tsaURL;
 
     public void execute() throws MojoExecutionException {
