@@ -87,7 +87,7 @@ import jdk.security.jarsigner.JarSigner;
 /**
  * Goal which: - generates ephemeral key pair - requests code signing
  * certificate from sigstore Fulcio - signs the JAR file - publishes signature
- * to sigstore rekor - verifies the signed JAR
+ * to sigstore rekor
  */
 @Mojo(name = "sign", defaultPhase = LifecyclePhase.PACKAGE)
 public class Sign extends AbstractMojo {
@@ -446,7 +446,7 @@ public class Sign extends AbstractMojo {
             getLog().info("signing JAR file " + jarToSign.getAbsolutePath());
 
             File outputJarFile;
-            Boolean overwrite = true;
+            boolean overwrite = true;
             if (outputSignedJar != null) {
                 outputJarFile = outputSignedJar;
                 overwrite = false;
@@ -470,19 +470,17 @@ public class Sign extends AbstractMojo {
                     FileOutputStream jarOut = new FileOutputStream(outputJarFile);
                     TeeOutputStream tee = new TeeOutputStream(jarOut, memOut);) {
                 js.sign(in, tee);
-                if (Boolean.TRUE.equals(overwrite)) {
+
+                if (overwrite) {
                     if (!outputJarFile.renameTo(jarToSign)) {
                         throw new IOException("error overwriting unsigned JAR");
                     }
-                    getLog().info("wrote signed JAR to " + jarToSign.getAbsolutePath());
-                    if (!JarSignerUtil.isArchiveSigned(jarToSign)) {
-                        throw new VerifyError("JAR signing verification failed");
-                    }
-                } else {
-                    getLog().info("wrote signed JAR to " + outputSignedJar.getAbsolutePath());
-                    if (!JarSignerUtil.isArchiveSigned(outputSignedJar)) {
-                        throw new VerifyError("JAR signing verification failed");
-                    }
+                    outputJarFile = jarToSign;
+                }
+
+                getLog().info("wrote signed JAR to " + outputJarFile.getAbsolutePath());
+                if (!JarSignerUtil.isArchiveSigned(outputJarFile)) {
+                    throw new VerifyError("JAR signing verification failed: archive does not contain signature");
                 }
             }
 
