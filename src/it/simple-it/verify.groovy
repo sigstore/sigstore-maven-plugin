@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-File touchFile = new File( basedir, "target/touch.txt" );
+File cert = new File( basedir, "target/signingCert.pem" );
 
-assert touchFile.isFile()
+assert cert.isFile()
