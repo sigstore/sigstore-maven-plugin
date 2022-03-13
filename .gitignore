@@ -1,5 +1,11 @@
 .vscode
 .factorypath
+.project
+.classpath
+.settings/
+*.iml
+*.ipr
+.idea
 *.class
 *.jar
 target/
