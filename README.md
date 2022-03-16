@@ -1,6 +1,6 @@
 # sigstore-maven-plugin
 
-This is a Maven plugin that can be used to use the "keyless" signing paradigm supported by Sigstore. 
+This is a Maven plugin that can be used to use the "keyless" signing paradigm supported by Sigstore, to [sign JAR file](https://docs.oracle.com/javase/tutorial/deployment/jar/intro.html). 
 
 Javadoc can be located at:  INSERT LINK HERE, but you can quickly take advantage of the plugin by adding the following configuration into your Maven POM.XML file:
 
