@@ -85,9 +85,12 @@ import com.google.api.client.json.gson.GsonFactory;
 import jdk.security.jarsigner.JarSigner;
 
 /**
- * Goal which: - generates ephemeral key pair - requests code signing
- * certificate from sigstore Fulcio - signs the JAR file - publishes signature
- * to sigstore rekor
+ * Goal which:<ul>
+ * <li>generates ephemeral key pair
+ * <li>requests code signing certificate from sigstore Fulcio
+ * <li>signs the JAR file (with {@code jarsigner})
+ * <li>publishes JAR file (that contains the signature per JAR signing spec) to sigstore rekor
+ * </ul>
  */
 @Mojo(name = "sign", defaultPhase = LifecyclePhase.PACKAGE)
 public class Sign extends AbstractMojo {
@@ -105,7 +108,7 @@ public class Sign extends AbstractMojo {
     private File inputJar;
 
     /**
-     * Location of the signed JAR file; defaults to overwriting the input file with
+     * Location of the {@code jarsigner}-signed JAR file; defaults to overwriting the input file with
      * the signed JAR
      */
     @Parameter(property = "output-signed-jar")
@@ -209,14 +212,14 @@ public class Sign extends AbstractMojo {
         // push to fulcio, get signing cert chain
         CertPath certs = getSigningCert(signedEmail, keypair.getPublic(), rawIdToken);
 
-        // sign JAR file here
-        byte[] jarBytes = signJarFile(keypair.getPrivate(), certs);
+        // sign JAR file with jarsigner here
+        byte[] signedJarBytes = signJarFile(keypair.getPrivate(), certs);
 
         // write signing certificate to file
         writeSigningCertToFile(certs, outputSigningCert);
 
-        // submit jar to rekor
-        submitToRekor(jarBytes);
+        // submit signed jar to rekor
+        submitToRekor(signedJarBytes);
     }
 
     /**
@@ -427,7 +430,7 @@ public class Sign extends AbstractMojo {
     }
 
     /**
-    * Signs a JAR file using the private key; the provided certificate chain will be included in the signed JAR file
+    * Signs a JAR file with {@code jarsigner} using the private key; the provided certificate chain will be included in the signed JAR file
     *
     * @param  privKey the private key that should be used to sign the JAR file
     * @param  certs   The certificate chain including the code signing certificate which can be used to verify the signature
@@ -443,7 +446,7 @@ public class Sign extends AbstractMojo {
             } else {
                 jarToSign = this.project.getArtifact().getFile();
             }
-            getLog().info("signing JAR file " + jarToSign.getAbsolutePath());
+            getLog().info("signing (with jarsigner) JAR file " + jarToSign.getAbsolutePath());
 
             File outputJarFile;
             boolean overwrite = true;
@@ -522,7 +525,7 @@ public class Sign extends AbstractMojo {
     }
 
     /**
-    * Submits the signature to a Rekor transparency log
+    * Submits the jarsigned JAR to a Rekor transparency log, with rekor {@code jar} type
     *
     * @param  jarBytes The signed JAR file in a byte array
     * @return       The URL where the entry in the transparency log can be seen for this signature/key combination
@@ -536,10 +539,10 @@ public class Sign extends AbstractMojo {
             Map<String, Object> rekorPostContent = new HashMap<>();
             Map<String, Object> specContent = new HashMap<>();
             Map<String, Object> archiveContent = new HashMap<>();
-            archiveContent.put("content", jarB64);
+            archiveContent.put("content", jarB64); // could be url + hash instead
             specContent.put("archive", archiveContent);
 
-            rekorPostContent.put("kind", "jar");
+            rekorPostContent.put("kind", "jar"); // https://github.com/sigstore/rekor/blob/main/pkg/types/jar/v0.0.1/jar_v0_0_1_schema.json
             rekorPostContent.put("apiVersion", "0.0.1");
             rekorPostContent.put("spec", specContent);
             JsonHttpContent rekorJsonContent = new JsonHttpContent(new GsonFactory(), rekorPostContent);
