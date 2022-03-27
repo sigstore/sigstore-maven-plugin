@@ -13,5 +13,10 @@
 // limitations under the License.
 
 File cert = new File( basedir, "target/signingCert.pem" );
-
 assert cert.isFile()
+
+File outputJar = new File( basedir, "target/sign-it-1.0-SNAPSHOT.jar" );
+assert outputJar.isFile()
+
+File sig = new File( basedir, "target/signature.sig" );
+assert sig.isFile()

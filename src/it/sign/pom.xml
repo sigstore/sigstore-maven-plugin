@@ -20,13 +20,14 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>sigstore.plugin.it</groupId>
-  <artifactId>simple-it</artifactId>
+  <artifactId>sign-it</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <description>A simple IT verifying the basic use case.</description>
+  <description>A simple IT verifying the basic sign use case.</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.build.outputTimestamp>1648302047</project.build.outputTimestamp>
   </properties>
 
   <build>
@@ -45,6 +46,39 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>net.nicoulaj.maven.plugins</groupId>
+        <artifactId>checksum-maven-plugin</artifactId>
+        <version>1.10</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>files</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <fileSets>
+            <fileSet>
+              <directory>${project.build.directory}</directory>
+              <includes>
+                <include>*.jar</include>
+              </includes>
+            </fileSet>
+          </fileSets>
+          <algorithms>
+            <algorithm>SHA-256</algorithm>
+          </algorithms>
+        </configuration>
+      </plugin>
     </plugins>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.2.2</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
   </build>
 </project>
