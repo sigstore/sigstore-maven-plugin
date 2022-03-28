@@ -53,7 +53,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>11</maven.compiler.release>
-    <maven.version>3.8.4</maven.version>
+    <maven.version>3.8.5</maven.version>
   </properties>
 
   <dependencies>
