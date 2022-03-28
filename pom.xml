@@ -26,7 +26,12 @@
 
   <name>sigstore Maven Plugin</name>
 
-  <url>https://sigstore.dev</url>
+  <url>https://sigstore.github.io/sigstore-maven-plugin/</url>
+
+  <organization>
+    <name>sigstore</name>
+    <url>https://sigstore.dev/</url>
+  </organization>
 
   <licenses>
     <license>
@@ -39,6 +44,17 @@
     <maven>${maven.version}</maven>
   </prerequisites>
 
+  <scm>
+    <connection>scm:git:https://github.com/sigstore/sigstore-maven-plugin.git</connection>
+    <developerConnection>scm:git:https://github.com/sigstore/sigstore-maven-plugin.git</developerConnection>
+    <url>https://github.com/sigstore/sigstore-maven-plugin/tree/${project.scm.tag}</url>
+    <tag>main</tag>
+  </scm>
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/sigstore/sigstore-maven-plugin/issues/</url>
+  </issueManagement>
+
   <distributionManagement>
     <snapshotRepository>
       <id>ossrh</id>
@@ -48,6 +64,10 @@
       <id>ossrh</id>
       <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
+    <site>
+      <id>gh-pages</id>
+      <url>scm:git:ssh://git@github.com/sigstore/sigstore-maven-plugin.git</url>
+    </site>
   </distributionManagement>
 
   <properties>
@@ -187,6 +207,14 @@
           <artifactId>maven-invoker-plugin</artifactId>
           <version>3.2.2</version>
         </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>3.11.0</version>
+          <configuration>
+            <skipDeploy>true</skipDeploy><!-- don't deploy site with maven-site-plugin -->
+          </configuration>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
@@ -248,8 +276,56 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-scm-publish-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration>
+          <scmBranch>gh-pages</scmBranch>
+          <content>${project.reporting.outputDirectory}</content>
+        </configuration>
+        <executions>
+          <execution>
+            <id>scm-publish</id>
+            <phase>site-deploy</phase><!-- deploy site with maven-scm-publish-plugin -->
+            <goals>
+              <goal>publish-scm</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
+
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-project-info-reports-plugin</artifactId>
+        <reportSets>
+          <reportSet>
+            <reports>
+              <report>index</report>
+              <report>summary</report>
+              <report>dependency-info</report>
+              <report>team</report>
+              <report>scm</report>
+              <report>issue-management</report>
+              <report>dependency-management</report>
+              <report>dependencies</report>
+              <report>plugin-management</report>
+              <report>plugins</report>
+              <report>distribution-management</report>
+            </reports>
+          </reportSet>
+        </reportSets>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-plugin-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </reporting>
 
   <profiles>
     <profile>
