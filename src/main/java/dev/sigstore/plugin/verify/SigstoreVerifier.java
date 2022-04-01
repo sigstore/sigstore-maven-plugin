@@ -18,6 +18,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.Signature;
 import java.security.cert.CertPath;
 import java.security.cert.Certificate;
@@ -34,6 +36,7 @@ import com.google.api.client.util.PemReader;
 import com.google.api.client.util.PemReader.Section;
 import dev.sigstore.plugin.client.SigstoreClient;
 import dev.sigstore.plugin.model.HashedRekordWrapper;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.slf4j.Logger;
@@ -92,9 +95,13 @@ public class SigstoreVerifier
       final Certificate certificate)
   {
     try {
-      LOG.debug("Processing verification with cert {}", certificate);
-      //TODO: Figure out what i'm doing here, this sig validation isn't working as desired
-      Signature signature = Signature.getInstance(certificate.getPublicKey().getAlgorithm(), new BouncyCastleProvider());
+      File sigFile = new File(binaryFile.getAbsolutePath() + ".EC");
+
+      String sig = new String(Base64.decodeBase64(Files.readAllBytes(sigFile.toPath())), UTF_8);
+
+      LOG.debug("Processing verification with cert {} and sig {}", certificate, sig);
+
+      Signature signature = Signature.getInstance("SHA384withECDSA", new BouncyCastleProvider());
       signature.initVerify(certificate.getPublicKey());
       signature.verify(rekord.decodedSignature.getBytes(UTF_8));
     }
