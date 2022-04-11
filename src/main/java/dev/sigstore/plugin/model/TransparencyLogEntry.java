@@ -14,10 +14,11 @@
 // limitations under the License.
 package dev.sigstore.plugin.model;
 
+import java.util.Map;
+
 public class TransparencyLogEntry
 {
-  // ignore type that i don't know
-  //public Object attestation;
+  public Map<String,Object> attestation;
 
   //base64-encoded HashedRekord
   public String body;
@@ -33,6 +34,7 @@ public class TransparencyLogEntry
   @Override
   public String toString() {
     return "TransparencyLogEntry{" +
+        "attestation='" + attestation + '\'' +
         "body='" + body + '\'' +
         ", integratedTime=" + integratedTime +
         ", logID='" + logID + '\'' +

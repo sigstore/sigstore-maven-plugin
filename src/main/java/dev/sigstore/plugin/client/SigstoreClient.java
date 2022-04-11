@@ -82,8 +82,6 @@ public class SigstoreClient
               objectMapper.writeValueAsString(new HashedRekordUuidRequest(String.format("%s:%s", checksumType, checksum)))),
           new TypeReference<>() { });
 
-      LOG.debug("Found transparency log uuids: {}", transparencyLogUuids.toString());
-
       return transparencyLogUuids.stream().map(this::getHashedRekordWrapperFromUuid).collect(toList());
     }
     catch (Exception e) {
@@ -108,8 +106,6 @@ public class SigstoreClient
           getJsonFromPOST(TRANSPARENCY_LOG_ENTRY_URL,
               objectMapper.writeValueAsString(new HashedRekordRequest(singletonList(uuid)))),
           new TypeReference<>() { });
-
-      LOG.debug("Found HashedRekordWrapper {} from uuid {}", hashedRekordWrapperList, uuid);
 
       if (hashedRekordWrapperList.size() > 1) {
         throw new RuntimeException(
@@ -143,7 +139,10 @@ public class SigstoreClient
               httpResponse.getStatusLine().getStatusCode(), EntityUtils.toString(httpResponse.getEntity())));
         }
 
-        return EntityUtils.toString(httpResponse.getEntity());
+        String responseJson = EntityUtils.toString(httpResponse.getEntity());
+        LOG.debug("Received JSON\n{}", objectMapper.writerWithDefaultPrettyPrinter()
+            .writeValueAsString(objectMapper.readValue(responseJson, Object.class)));
+        return responseJson;
       }
     }
   }

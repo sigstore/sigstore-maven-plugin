@@ -122,14 +122,13 @@ public class SigstoreVerifier
   private void printRekord(final HashedRekordWrapper rekord)
   {
     logAndAppend(String.format("Rekord retrieve from sigstore with integratedTime %d", rekord.integratedTime));
-    logAndAppend(String.format("Decoded public signing cert: %s", rekord.decodedX509PublicSigningCertificate));
-    logAndAppend(String.format("Decoded signature: %s", rekord.decodedSignature));
+    logAndAppend(String.format("Decoded public signing cert:%n%s", rekord.decodedX509PublicSigningCertificate));
+    logAndAppend(String.format("Decoded signature:%n%s", rekord.decodedSignature));
   }
 
   private void printCert(final Certificate certificate)
   {
-    logAndAppend(String.format("Certificate pulled from public signing certificate: %s", certificate));
-    LOG.info("Certificate pulled from public signing certificate: {}", certificate);
+    logAndAppend(String.format("Certificate pulled from public signing certificate:%n%s", certificate));
   }
 
   private void logAndAppend(final String msg) {
