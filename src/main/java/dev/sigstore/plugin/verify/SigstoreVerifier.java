@@ -56,11 +56,13 @@ public class SigstoreVerifier
 
   public void verifySignature(final File binaryFile) {
     try {
+      LOG.info("checking binary file {}", binaryFile);
       String sha256 = new DigestUtils(SHA_256).digestAsHex(binaryFile);
+      LOG.info("sha256 = {}", sha256);
 
       List<HashedRekordWrapper> rekords = sigstoreClient.getHashedRekordWrappersFromChecksum("sha256", sha256);
 
-      LOG.debug("Found rekords {}", rekords);
+      LOG.info("Found rekords {}", rekords);
 
       processRekords(binaryFile, sha256, rekords);
     }
@@ -99,7 +101,7 @@ public class SigstoreVerifier
 
       String sig = new String(Base64.decodeBase64(Files.readAllBytes(sigFile.toPath())), UTF_8);
 
-      LOG.debug("Processing verification with cert {} and sig {}", certificate, sig);
+      LOG.info("Processing verification with cert {} and sig {}", certificate, sig);
 
       Signature signature = Signature.getInstance("SHA384withECDSA", new BouncyCastleProvider());
       signature.initVerify(certificate.getPublicKey());
