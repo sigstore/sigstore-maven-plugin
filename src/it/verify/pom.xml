@@ -44,7 +44,7 @@
           </execution>
         </executions>
         <configuration>
-          <binaryFile>pom.xml</binaryFile>
+          <binaryFile>src/main/resources/test.jar</binaryFile>
         </configuration>
       </plugin>
     </plugins>

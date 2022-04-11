@@ -14,34 +14,27 @@
 // limitations under the License.
 package dev.sigstore.plugin.verify;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.security.Signature;
+import java.nio.file.Path;
 import java.security.cert.CertPath;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.util.ArrayList;
+import java.security.cert.CertificateException;
 import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import com.google.api.client.util.PemReader;
-import com.google.api.client.util.PemReader.Section;
 import dev.sigstore.plugin.client.SigstoreClient;
 import dev.sigstore.plugin.model.HashedRekordWrapper;
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static dev.sigstore.plugin.Utils.getCertPath;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_256;
 
@@ -49,22 +42,29 @@ import static org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_256;
 @Named
 public class SigstoreVerifier
 {
+  private static final String NL = System.lineSeparator();
+
   private static final Logger LOG = LoggerFactory.getLogger(SigstoreVerifier.class);
 
   @Inject
   private SigstoreClient sigstoreClient;
 
+  //Solely used for generating a file in /target containing all the logging statements for IT validation as of now
+  private final StringBuilder contentBuilder = new StringBuilder();
+
   public void verifySignature(final File binaryFile) {
     try {
-      LOG.info("checking binary file {}", binaryFile);
+      contentBuilder.setLength(0);
+
       String sha256 = new DigestUtils(SHA_256).digestAsHex(binaryFile);
-      LOG.info("sha256 = {}", sha256);
+
+      printInit(binaryFile, sha256);
 
       List<HashedRekordWrapper> rekords = sigstoreClient.getHashedRekordWrappersFromChecksum("sha256", sha256);
 
-      LOG.info("Found rekords {}", rekords);
-
       processRekords(binaryFile, sha256, rekords);
+
+      writeContent();
     }
     catch (IOException e) {
       throw new RuntimeException("Failed to verify signature", e);
@@ -76,6 +76,7 @@ public class SigstoreVerifier
       final String sha256,
       final List<HashedRekordWrapper> rekords)
   {
+    printRekords(binaryFile, sha256, rekords);
     rekords.forEach(rekord -> processRekord(binaryFile, sha256, rekord));
   }
 
@@ -84,10 +85,15 @@ public class SigstoreVerifier
       final String sha256,
       final HashedRekordWrapper rekord)
   {
-    CertPath publicSigningCert = getSigningCert(rekord.decodedX509PublicSigningCertificate);
-
-    publicSigningCert.getCertificates()
-        .forEach(certificate -> processCert(binaryFile, sha256, rekord, certificate));
+    try {
+      printRekord(rekord);
+      CertPath publicSigningCert =
+          getCertPath(IOUtils.toInputStream(rekord.decodedX509PublicSigningCertificate, UTF_8));
+      publicSigningCert.getCertificates().forEach(certificate -> processCert(binaryFile, sha256, rekord, certificate));
+    }
+    catch (CertificateException | IOException e) {
+      LOG.error("Failed to retrieve certificates", e);
+    }
   }
 
   private void processCert(
@@ -96,43 +102,52 @@ public class SigstoreVerifier
       final HashedRekordWrapper rekord,
       final Certificate certificate)
   {
-    try {
-      File sigFile = new File(binaryFile.getAbsolutePath() + ".EC");
+    printCert(certificate);
 
-      String sig = new String(Base64.decodeBase64(Files.readAllBytes(sigFile.toPath())), UTF_8);
-
-      LOG.info("Processing verification with cert {} and sig {}", certificate, sig);
-
-      Signature signature = Signature.getInstance("SHA384withECDSA", new BouncyCastleProvider());
-      signature.initVerify(certificate.getPublicKey());
-      signature.verify(rekord.decodedSignature.getBytes(UTF_8));
-    }
-    catch (Exception e) {
-      throw new RuntimeException("Failed to process the signature with cert", e);
-    }
+    //TODO: the actual signature verification
+    String todo = "implementMe";
   }
 
-  private CertPath getSigningCert(final String publicSigningCert) {
-    try {
-      CertificateFactory cf = CertificateFactory.getInstance("X.509");
-      ArrayList<X509Certificate> certList = new ArrayList<>();
-      PemReader pemReader = new PemReader(new StringReader(publicSigningCert));
-      while (true) {
-        Section section = pemReader.readNextSection();
-        if (section == null) {
-          break;
-        }
+  private void printInit(final File binaryFile, final String sha256) {
+    logAndAppend(
+        String.format("Query sigstore for published signatures using sha256 %s of the provided file %s", sha256,
+            binaryFile.getAbsolutePath()));
+  }
 
-        byte[] certBytes = section.getBase64DecodedBytes();
-        certList.add((X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes)));
+  private void printRekords(final File binaryFile, final String sha256, final List<HashedRekordWrapper> rekords) {
+    logAndAppend(String.format("Found %d rekord(s) matching sha256 %s of the provided file %s", rekords.size(), sha256,
+        binaryFile.getAbsolutePath()));
+  }
+
+  private void printRekord(final HashedRekordWrapper rekord)
+  {
+    logAndAppend(String.format("Rekord retrieve from sigstore with integratedTime %d", rekord.integratedTime));
+    logAndAppend(String.format("Decoded public signing cert: %s", rekord.decodedX509PublicSigningCertificate));
+    logAndAppend(String.format("Decoded signature: %s", rekord.decodedSignature));
+  }
+
+  private void printCert(final Certificate certificate)
+  {
+    logAndAppend(String.format("Certificate pulled from public signing certificate: %s", certificate));
+    LOG.info("Certificate pulled from public signing certificate: {}", certificate);
+  }
+
+  private void logAndAppend(final String msg) {
+    LOG.info(msg);
+    contentBuilder.append(msg).append(System.lineSeparator());
+  }
+
+  private void writeContent() {
+    Path path = Path.of("target", "verify-receipt.txt");
+    try {
+      if (Files.exists(path)) {
+        LOG.debug("Deleting existing content file and rewriting {}", path.toAbsolutePath().toString());
+        Files.delete(path);
       }
-      if (certList.isEmpty()) {
-        throw new IOException("no certificates were found in response from Fulcio instance");
-      }
-      return cf.generateCertPath(certList);
+      Files.write(path, contentBuilder.toString().getBytes(UTF_8));
     }
-    catch (Exception e) {
-      throw new RuntimeException("Failed to get signing certificate");
+    catch (IOException e) {
+      LOG.error("Failed to write content to {}", path.toAbsolutePath().toString());
     }
   }
 }

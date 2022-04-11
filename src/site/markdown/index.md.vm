@@ -39,3 +39,27 @@ This is a Maven plugin that can be used to use the "keyless" signing paradigm su
         </executions>
       </plugin>
 ```
+
+Along with starting the experimental process of verifying these same signatures with the 'verify' goal
+```xml
+      <plugin>
+        <groupId>dev.sigstore</groupId>
+        <artifactId>sigstore-maven-plugin</artifactId>
+        <version>${project.version}</version>
+        <executions>
+          <execution>
+            <id>sigstore-verify</id>
+            <goals>
+              <goal>verify</goal>
+            </goals>
+            <configuration>
+              <!--
+              In the end I envision this working as the pgp verify plugin, automatically validating signatures
+              on dependencies.  Additionally other configurable parameters to control the process
+              -->
+              <binaryFile>ENTER_YOUR_BINARY_FILE_HERE</binaryFile>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+```
