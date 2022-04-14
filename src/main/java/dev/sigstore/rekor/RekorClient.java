@@ -12,7 +12,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.client;
+package dev.sigstore.rekor;
 
 import java.io.IOException;
 import java.net.URI;
@@ -25,11 +25,13 @@ import javax.inject.Singleton;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.sigstore.plugin.model.HashedRekord;
-import dev.sigstore.plugin.model.HashedRekordRequest;
-import dev.sigstore.plugin.model.HashedRekordUuidRequest;
-import dev.sigstore.plugin.model.HashedRekordWrapper;
-import dev.sigstore.plugin.model.TransparencyLogEntry;
+
+import dev.sigstore.rekor.model.RekorLogEntryBody;
+import dev.sigstore.rekor.model.RekorEntriesRequest;
+import dev.sigstore.rekor.model.RekorIndexRequest;
+import dev.sigstore.rekor.model.HashedRekordWrapper;
+import dev.sigstore.rekor.model.RekorLogEntry;
+
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -43,14 +45,17 @@ import org.slf4j.LoggerFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
-import static java.util.stream.Collectors.toList;
 import static org.apache.http.entity.ContentType.APPLICATION_JSON;
 
+/**
+ * Sigstore Rekor transparency log client,
+ * see <a href="https://github.com/sigstore/rekor/blob/main/openapi.yaml">Rekor OpenAPI definition</a>
+ */
 @Named
 @Singleton
-public class SigstoreClient
+public class RekorClient
 {
-  private static final Logger LOG = LoggerFactory.getLogger(SigstoreClient.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RekorClient.class);
 
   private static final String TRANSPARENCY_LOG_INDEX_URL = "https://rekor.sigstore.dev/api/v1/index/retrieve";
 
@@ -58,11 +63,12 @@ public class SigstoreClient
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 
-  public SigstoreClient() {
+  public RekorClient() {
     objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
   }
+
   /*
-   * Send request off to sigstore to find any transparency logs for checksum
+   * Send request off to rekor to find any transparency logs for checksum
    * example:
    *
    * POST https://rekor.sigstore.dev/api/v1/index/retrieve
@@ -70,19 +76,21 @@ public class SigstoreClient
    *   hash: "sha256:342024b59f3b8fe1a37efce6167023bc368f71ca01779ae81e78b2f4aca376be"
    * }
    */
-  public List<HashedRekordWrapper> getHashedRekordWrappersFromChecksum(
+  public List<String> getRekorUuidsFromChecksum(
       final String checksumType,
       final String checksum)
   {
     try {
-      LOG.debug("Requesting transparency log records from {} for checksum {}:{}", TRANSPARENCY_LOG_INDEX_URL,
+      LOG.debug("Requesting rekor entry UUIDs from {} for checksum {}:{}", TRANSPARENCY_LOG_INDEX_URL,
           checksumType, checksum);
 
       List<String> transparencyLogUuids = objectMapper.readValue(getJsonFromPOST(TRANSPARENCY_LOG_INDEX_URL,
-              objectMapper.writeValueAsString(new HashedRekordUuidRequest(String.format("%s:%s", checksumType, checksum)))),
+              objectMapper.writeValueAsString(new RekorIndexRequest(String.format("%s:%s", checksumType, checksum)))),
           new TypeReference<>() { });
 
-      return transparencyLogUuids.stream().map(this::getHashedRekordWrapperFromUuid).collect(toList());
+      LOG.debug("Found {} rekor entry UUIDs: {}",transparencyLogUuids.size(), transparencyLogUuids);
+
+      return transparencyLogUuids;
     }
     catch (Exception e) {
       throw new RuntimeException(e);
@@ -90,7 +98,7 @@ public class SigstoreClient
   }
 
   /*
-   * Send request off to sigstore to grab the HashedRekord associated with a single uuid
+   * Send request off to rekor to grab the Rekord associated with a single uuid
    * example:
    *
    * POST https://rekor.sigstore.dev/api/v1/log/entries/retrieve
@@ -98,28 +106,38 @@ public class SigstoreClient
    *   entryUUIDs: ["a9bd97ee5453ce44525069e8ff8703555bc28d9f1553b9745bd6cdff3732bb87"]
    * }
    */
-  private HashedRekordWrapper getHashedRekordWrapperFromUuid(final String uuid) {
+  public RekorLogEntry getRekordLogEntryFromUuid(final String uuid) {
     try {
-      LOG.debug("Requesting transparency log record from {} for uuid {}", TRANSPARENCY_LOG_ENTRY_URL, uuid);
+      LOG.debug("Requesting rekor log entry from {} for uuid {}", TRANSPARENCY_LOG_ENTRY_URL, uuid);
 
-      List<Map<String, Object>> hashedRekordWrapperList = objectMapper.readValue(
+      List<Map<String, Object>> rekorLogEntries = objectMapper.readValue(
           getJsonFromPOST(TRANSPARENCY_LOG_ENTRY_URL,
-              objectMapper.writeValueAsString(new HashedRekordRequest(singletonList(uuid)))),
+              objectMapper.writeValueAsString(new RekorEntriesRequest(singletonList(uuid)))),
           new TypeReference<>() { });
 
-      if (hashedRekordWrapperList.size() > 1) {
+      if (rekorLogEntries.size() != 1) {
         throw new RuntimeException(
-            String.format("Received %s results for uuid %s query.", hashedRekordWrapperList.size(), uuid));
+            String.format("Received %s results for uuid %s query, expected 1.", rekorLogEntries.size(), uuid));
       }
 
-      TransparencyLogEntry transparencyLogEntry =
-          objectMapper.readValue(objectMapper.writeValueAsString(hashedRekordWrapperList.get(0).get(uuid)),
-              TransparencyLogEntry.class);
+      return
+          objectMapper.readValue(objectMapper.writeValueAsString(rekorLogEntries.get(0).get(uuid)),
+              RekorLogEntry.class);
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
 
-      HashedRekord record = objectMapper.readValue(new String(Base64.decodeBase64(transparencyLogEntry.body), UTF_8),
-          HashedRekord.class);
+  public HashedRekordWrapper getRekordWrapper(final RekorLogEntry rekorLogEntry) {
+    try {
+      String decodedBody = new String(Base64.decodeBase64(rekorLogEntry.body), UTF_8);
+      LOG.debug("Rekor log entry decoded body: {}", objectMapper.writerWithDefaultPrettyPrinter()
+          .writeValueAsString(objectMapper.readValue(decodedBody, Object.class)));
 
-      return new HashedRekordWrapper(transparencyLogEntry.integratedTime, record,
+      RekorLogEntryBody record = objectMapper.readValue(decodedBody, RekorLogEntryBody.class);
+ 
+      return new HashedRekordWrapper(rekorLogEntry.integratedTime, record,
           new String(Base64.decodeBase64(record.spec.signature.publicKey.content), UTF_8),
           new String(Base64.decodeBase64(record.spec.signature.content), UTF_8));
     }

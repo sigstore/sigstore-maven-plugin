@@ -12,16 +12,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-public class HashedRekordSpecData
+import java.util.List;
+
+public class RekorEntriesRequest
 {
-  public HashedRekordSpecDataHash hash;
+  public List<String> entryUUIDs;
+
+  public RekorEntriesRequest(final List<String> entryUUIDs) {
+    this.entryUUIDs = entryUUIDs;
+  }
 
   @Override
   public String toString() {
-    return "HashedRekordSpecData{" +
-        "hash=" + hash +
+    return "RekorEntriesRequest{" +
+        "entryUUIDs=" + entryUUIDs +
         '}';
   }
 }

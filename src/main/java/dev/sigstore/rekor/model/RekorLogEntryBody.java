@@ -12,22 +12,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-import java.util.List;
-
-public class HashedRekordRequest
+public class RekorLogEntryBody
 {
-  public List<String> entryUUIDs;
+  public String apiVersion;
 
-  public HashedRekordRequest(final List<String> entryUUIDs) {
-    this.entryUUIDs = entryUUIDs;
-  }
+  public String kind;
+
+  // TODO based on kind value, spec may be different:
+  // hashedrekord: https://github.com/sigstore/rekor/blob/main/pkg/types/hashedrekord/v0.0.1/hashedrekord_v0_0_1_schema.json
+  // jar: https://github.com/sigstore/rekor/blob/main/pkg/types/jar/v0.0.1/jar_v0_0_1_schema.json
+  public HashedRekordSpec spec;
 
   @Override
   public String toString() {
-    return "HashedRekordRequest{" +
-        "entryUUIDs=" + entryUUIDs +
+    return "RekorLogEntryBody{" +
+        "apiVersion='" + apiVersion + '\'' +
+        ", kind='" + kind + '\'' +
+        ", spec=" + spec +
         '}';
   }
 }

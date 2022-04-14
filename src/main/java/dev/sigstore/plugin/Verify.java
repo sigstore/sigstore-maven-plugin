@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Goal which:<ul>
- * <li>verifies dependency signatures against fulco
+ * <li>verifies dependency signatures against Rekor
  * </ul>
  */
 @Mojo(name = "verify", defaultPhase = LifecyclePhase.VERIFY)

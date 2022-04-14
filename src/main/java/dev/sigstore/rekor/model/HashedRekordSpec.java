@@ -12,16 +12,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-public class HashedRekordSpecSignaturePublicKey
+public class HashedRekordSpec
 {
-  public String content;
+  public HashedRekordSpecData data;
+
+  public HashedRekordSpecSignature signature;
 
   @Override
   public String toString() {
-    return "HashedRekordSpecSignaturePublicKey{" +
-        "content='" + content + '\'' +
+    return "HashedRekordSpec{" +
+        "data=" + data +
+        ", signature=" + signature +
         '}';
   }
 }

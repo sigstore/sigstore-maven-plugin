@@ -12,22 +12,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-public class HashedRekord
+public class HashedRekordSpecData
 {
-  public String apiVersion;
-
-  public String kind;
-
-  public HashedRekordSpec spec;
+  public HashedRekordSpecDataHash hash;
 
   @Override
   public String toString() {
-    return "HashedRekord{" +
-        "apiVersion='" + apiVersion + '\'' +
-        ", kind='" + kind + '\'' +
-        ", spec=" + spec +
+    return "HashedRekordSpecData{" +
+        "hash=" + hash +
         '}';
   }
 }

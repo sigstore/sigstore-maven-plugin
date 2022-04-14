@@ -12,19 +12,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-public class HashedRekordSpecDataHash
+public class RekorIndexRequest
 {
-  public String algorithm;
+  public String hash;
 
-  public String value;
+  public RekorIndexRequest(final String hash) {
+    this.hash = hash;
+  }
 
   @Override
   public String toString() {
-    return "HashedRekordSpecDataHash{" +
-        "algorithm='" + algorithm + '\'' +
-        ", value='" + value + '\'' +
+    return "RekorIndexRequest{" +
+        "hash='" + hash + '\'' +
         '}';
   }
 }

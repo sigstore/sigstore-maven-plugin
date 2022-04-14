@@ -12,22 +12,34 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-public class HashedRekordSpecSignature
+import java.util.Map;
+
+public class RekorLogEntry
 {
-  public String content;
+  public Map<String,Object> attestation;
 
-  public String format;
+  //base64-encoded HashedRekord
+  public String body;
 
-  public HashedRekordSpecSignaturePublicKey publicKey;
+  public Long integratedTime;
+
+  public String logID;
+
+  public Long logIndex;
+
+  public RekorLogEntryVerification verification;
 
   @Override
   public String toString() {
-    return "HashedRekordSpecSignature{" +
-        "content='" + content + '\'' +
-        ", format='" + format + '\'' +
-        ", publicKey=" + publicKey +
+    return "TransparencyLogEntry{" +
+        "attestation='" + attestation + '\'' +
+        "body='" + body + '\'' +
+        ", integratedTime=" + integratedTime +
+        ", logID='" + logID + '\'' +
+        ", logIndex=" + logIndex +
+        ", verification=" + verification +
         '}';
   }
 }

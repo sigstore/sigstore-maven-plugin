@@ -27,8 +27,10 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import dev.sigstore.plugin.client.SigstoreClient;
-import dev.sigstore.plugin.model.HashedRekordWrapper;
+import dev.sigstore.rekor.RekorClient;
+import dev.sigstore.rekor.model.HashedRekordWrapper;
+import dev.sigstore.rekor.model.RekorLogEntry;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -36,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import static dev.sigstore.plugin.Utils.getCertPath;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.stream.Collectors.toList;
 import static org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_256;
 
 @Singleton
@@ -47,7 +50,7 @@ public class SigstoreVerifier
   private static final Logger LOG = LoggerFactory.getLogger(SigstoreVerifier.class);
 
   @Inject
-  private SigstoreClient sigstoreClient;
+  private RekorClient rekorClient;
 
   //Solely used for generating a file in /target containing all the logging statements for IT validation as of now
   private final StringBuilder contentBuilder = new StringBuilder();
@@ -60,9 +63,12 @@ public class SigstoreVerifier
 
       printInit(binaryFile, sha256);
 
-      List<HashedRekordWrapper> rekords = sigstoreClient.getHashedRekordWrappersFromChecksum("sha256", sha256);
+      List<String> rekorUuids = rekorClient.getRekorUuidsFromChecksum("sha256", sha256);
 
-      processRekords(binaryFile, sha256, rekords);
+      List<RekorLogEntry> rekorLogEntries = rekorUuids.stream().map(rekorClient::getRekordLogEntryFromUuid).collect(toList());
+
+      printRekords(binaryFile, sha256, rekorLogEntries);
+      rekorLogEntries.forEach(rekorLogEntry -> processRekord(binaryFile, sha256, rekorLogEntry));
 
       writeContent();
     }
@@ -71,20 +77,12 @@ public class SigstoreVerifier
     }
   }
 
-  private void processRekords(
-      final File binaryFile,
-      final String sha256,
-      final List<HashedRekordWrapper> rekords)
-  {
-    printRekords(binaryFile, sha256, rekords);
-    rekords.forEach(rekord -> processRekord(binaryFile, sha256, rekord));
-  }
-
   private void processRekord(
       final File binaryFile,
       final String sha256,
-      final HashedRekordWrapper rekord)
+      final RekorLogEntry rekorLogEntry)
   {
+    HashedRekordWrapper rekord = rekorClient.getRekordWrapper(rekorLogEntry);
     try {
       printRekord(rekord);
       CertPath publicSigningCert =
@@ -114,14 +112,14 @@ public class SigstoreVerifier
             binaryFile.getAbsolutePath()));
   }
 
-  private void printRekords(final File binaryFile, final String sha256, final List<HashedRekordWrapper> rekords) {
+  private void printRekords(final File binaryFile, final String sha256, final List<RekorLogEntry> rekords) {
     logAndAppend(String.format("Found %d rekord(s) matching sha256 %s of the provided file %s", rekords.size(), sha256,
         binaryFile.getAbsolutePath()));
   }
 
   private void printRekord(final HashedRekordWrapper rekord)
   {
-    logAndAppend(String.format("Rekord retrieve from sigstore with integratedTime %d", rekord.integratedTime));
+    logAndAppend(String.format("Rekord kind='%s' retrieved from sigstore with integratedTime %d", rekord.hashedRekord.kind, rekord.integratedTime));
     logAndAppend(String.format("Decoded public signing cert:%n%s", rekord.decodedX509PublicSigningCertificate));
     logAndAppend(String.format("Decoded signature:%n%s", rekord.decodedSignature));
   }

@@ -12,20 +12,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-public class HashedRekordUuidRequest
+public class HashedRekordSpecSignature
 {
-  public String hash;
+  public String content;
 
-  public HashedRekordUuidRequest(final String hash) {
-    this.hash = hash;
-  }
+  public String format;
+
+  public HashedRekordSpecSignaturePublicKey publicKey;
 
   @Override
   public String toString() {
-    return "HashedRekordUuidRequest{" +
-        "hash='" + hash + '\'' +
+    return "HashedRekordSpecSignature{" +
+        "content='" + content + '\'' +
+        ", format='" + format + '\'' +
+        ", publicKey=" + publicKey +
         '}';
   }
 }

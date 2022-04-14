@@ -12,34 +12,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package dev.sigstore.plugin.model;
+package dev.sigstore.rekor.model;
 
-import java.util.Map;
-
-public class TransparencyLogEntry
+public class RekorLogEntryVerification
 {
-  public Map<String,Object> attestation;
+  // TODO: investigate type
+  //public Object inclusionProof;
 
-  //base64-encoded HashedRekord
-  public String body;
-
-  public Long integratedTime;
-
-  public String logID;
-
-  public Long logIndex;
-
-  public TransparencyLogEntryVerification verification;
+  public String signedEntryTimestamp;
 
   @Override
   public String toString() {
-    return "TransparencyLogEntry{" +
-        "attestation='" + attestation + '\'' +
-        "body='" + body + '\'' +
-        ", integratedTime=" + integratedTime +
-        ", logID='" + logID + '\'' +
-        ", logIndex=" + logIndex +
-        ", verification=" + verification +
+    return "TransparencyLogEntryVerification{" +
+        "signedEntryTimestamp='" + signedEntryTimestamp + '\'' +
         '}';
   }
 }
