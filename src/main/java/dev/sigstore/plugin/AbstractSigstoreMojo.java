@@ -92,12 +92,6 @@ public abstract class AbstractSigstoreMojo extends AbstractMojo {
     protected MavenProject project;
 
     /**
-     * Location of the input JAR file. defaults to default project artifact
-     */
-    @Parameter(property = "input-jar")
-    protected File inputJar;
-
-    /**
      * Location of the code signing certificate (including public key) used to
      * verify signature
      */
@@ -198,16 +192,11 @@ public abstract class AbstractSigstoreMojo extends AbstractMojo {
         // write signing certificate to file
         writeSigningCertToFile(certs, outputSigningCert);
 
-        // sign file
-        byte[] content = signFile(keypair.getPrivate(), certs);
-
-        // submit signed content to rekor
-        submitToRekor(content);
+        // sign file then submit to rekor
+        signAndsubmitToRekor(keypair, certs);
     }
 
-    public abstract byte[] signFile(PrivateKey privKey, CertPath certs) throws MojoExecutionException;
-
-    public abstract Map<String, Object> rekorPostContent(byte[] content);
+    public abstract URL signAndsubmitToRekor(KeyPair keypair, CertPath certs) throws MojoExecutionException;
 
     /**
     * Returns a new ephemeral keypair according to the plugin parameters
@@ -469,21 +458,30 @@ public abstract class AbstractSigstoreMojo extends AbstractMojo {
     }
 
     /**
-    * Submits the signed content to a Rekor transparency log using rekorPostContent.
+    * Submits the content spec to a Rekor transparency log using defined
+    * <a href="https://github.com/sigstore/rekor/blob/main/pkg/types">rekor-supported type</a>.
     *
-    * @param  content The signed content in a byte array
+    * @param  kind The kind of rekor entry
+    * @param  spec The rekor entry spec
     * @return       The URL where the entry in the transparency log can be seen for this signature/key combination
     * @throws MojoExecutionException If any exception happened during interaction with the Rekor instance
     */
-    public URL submitToRekor(byte[] content) throws MojoExecutionException {
+    protected URL submitToRekor(String kind, Map<String, Object> spec) throws MojoExecutionException {
         try {
             HttpTransport httpTransport = getHttpTransport();
 
-            Map<String, Object> rekorPostContent = rekorPostContent(content);
+            Map<String, Object> rekorPostContent = new HashMap<>();
+            rekorPostContent.put("kind", kind); 
+            rekorPostContent.put("apiVersion", "0.0.1");
+            rekorPostContent.put("spec", spec);
 
             JsonHttpContent rekorJsonContent = new JsonHttpContent(new GsonFactory(), rekorPostContent);
-            ByteArrayOutputStream rekorStream = new ByteArrayOutputStream();
-            rekorJsonContent.writeTo(rekorStream);
+
+            if (getLog().isDebugEnabled()) {
+                ByteArrayOutputStream rekorStream = new ByteArrayOutputStream();
+                rekorJsonContent.writeTo(rekorStream);
+                getLog().debug("submitting to rekor: " + rekorStream.toString());
+            }
 
             GenericUrl rekorPostUrl = new GenericUrl(rekorInstanceURL + "/api/v1/log/entries");
             HttpRequest rekorReq = httpTransport.createRequestFactory().buildPostRequest(rekorPostUrl, rekorJsonContent);

@@ -28,7 +28,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.security.cert.CertPath;
-import java.security.PrivateKey;
+import java.security.KeyPair;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +36,7 @@ import java.util.function.BiConsumer;
 import java.util.zip.ZipFile;
 
 import java.io.IOException;
+import java.net.URL;
 
 import jdk.security.jarsigner.JarSigner;
 
@@ -50,6 +51,12 @@ import jdk.security.jarsigner.JarSigner;
 @Mojo(name = "jarsign", defaultPhase = LifecyclePhase.PACKAGE)
 public class Jarsign extends AbstractSigstoreMojo {
     /**
+     * Location of the input JAR file. defaults to default project artifact
+     */
+    @Parameter(property = "input-jar")
+    protected File inputJar;
+
+    /**
      * Location of the {@code jarsigner}-signed JAR file; defaults to overwriting the input file with
      * the signed JAR
      */
@@ -59,7 +66,7 @@ public class Jarsign extends AbstractSigstoreMojo {
     /**
     * Signs a JAR file with {@code jarsigner} using the private key; the provided certificate chain will be included in the signed JAR file
     */
-    public byte[] signFile(PrivateKey privKey, CertPath certs) throws MojoExecutionException {
+    public URL signAndsubmitToRekor(KeyPair keypair, CertPath certs) throws MojoExecutionException {
         // sign JAR using keypair
         try{
             File jarToSign;
@@ -82,7 +89,7 @@ public class Jarsign extends AbstractSigstoreMojo {
 
             BiConsumer<String, String> progressLogger = (op, entryName) -> getLog()
                     .debug(String.format("%s %s", op, entryName));
-            JarSigner.Builder jsb = new JarSigner.Builder(privKey, certs).digestAlgorithm("SHA-256")
+            JarSigner.Builder jsb = new JarSigner.Builder(keypair.getPrivate(), certs).digestAlgorithm("SHA-256")
                     .signatureAlgorithm("SHA256withECDSA").setProperty("internalsf", "true").signerName(signerName)
                     .eventHandler(progressLogger);
 
@@ -109,13 +116,14 @@ public class Jarsign extends AbstractSigstoreMojo {
                 }
             }
 
-            return memOut.toByteArray();
+            return submitToRekor(memOut.toByteArray());
         } catch (Exception e) {
             throw new MojoExecutionException("Error signing JAR file:", e);
         }
     }
 
-    public Map<String, Object> rekorPostContent(byte[] content) {
+    private URL submitToRekor(byte[] content) throws MojoExecutionException {
+        // https://github.com/sigstore/rekor/blob/main/pkg/types/jar/v0.0.1/jar_v0_0_1_schema.json
         String jarB64 = Base64.getEncoder().encodeToString(content);
         Map<String, Object> archiveContent = new HashMap<>();
         archiveContent.put("content", jarB64); // could be url + hash instead
@@ -123,11 +131,6 @@ public class Jarsign extends AbstractSigstoreMojo {
         Map<String, Object> specContent = new HashMap<>();
         specContent.put("archive", archiveContent);
 
-        Map<String, Object> rekorPostContent = new HashMap<>();
-        rekorPostContent.put("kind", "jar"); // https://github.com/sigstore/rekor/blob/main/pkg/types/jar/v0.0.1/jar_v0_0_1_schema.json
-        rekorPostContent.put("apiVersion", "0.0.1");
-        rekorPostContent.put("spec", specContent);
-
-        return rekorPostContent;
+        return submitToRekor("jar", specContent);
     }
 }
