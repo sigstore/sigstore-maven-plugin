@@ -18,5 +18,5 @@ assert cert.isFile()
 File outputJar = new File( basedir, "target/sign-it-1.0-SNAPSHOT.jar" );
 assert outputJar.isFile()
 
-File sig = new File( basedir, "target/signature.sig" );
-assert sig.isFile()
+//File sig = new File( basedir, "target/signature.sig" );
+//assert sig.isFile()

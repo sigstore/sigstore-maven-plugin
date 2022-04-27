@@ -495,7 +495,7 @@ public abstract class AbstractSigstoreMojo extends AbstractMojo {
             }
 
             URL rekorEntryUrl = new URL(rekorInstanceURL, rekorResp.getHeaders().getLocation());
-            getLog().info(String.format("Created entry in transparency log for JAR @ '%s'", rekorEntryUrl));
+            getLog().info(String.format("Created %s entry in transparency log @ '%s'", kind, rekorEntryUrl));
             return rekorEntryUrl;
         } catch (Exception e) {
             throw new MojoExecutionException(

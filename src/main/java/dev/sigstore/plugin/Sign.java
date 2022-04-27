@@ -15,8 +15,10 @@
 
 package dev.sigstore.plugin;
 
-import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.commons.codec.digest.DigestUtils;
+import static org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_256;
 
+import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
@@ -53,26 +55,7 @@ public class Sign extends AbstractSigstoreMojo {
     @Parameter(defaultValue = "${project.build.directory}/signature.sig", property = "output-signature", required = true)
     private File outputSignature;
 
-    /**
-     * Signature format: rekor supports {@code pgp}, {@code minisign}, {@code x509}, {@code ssh}.
-     * See https://github.com/sigstore/rekor/blob/main/pkg/types/rekord/v0.0.1/rekord_v0_0_1_schema.json#L12
-     * 
-     */
-    @Parameter(defaultValue = "x509", property = "signature-format", required = true)
-    private String format;
-
     public URL signAndsubmitToRekor(KeyPair keypair, CertPath certs) throws MojoExecutionException {
-        if ("pgp".equals(format)) {
-            throw new UnsupportedOperationException("pgp signing not yet supported");
-        } else if ("minisign".equals(format)) {
-            throw new UnsupportedOperationException("minisign signing not yet supported");
-        } else if ("x509".equals(format)) {
-            //throw new UnsupportedOperationException("x509 signing not yet supported");
-        } else if ("ssh".equals(format)) {
-            throw new UnsupportedOperationException("ssh signing not yet supported");
-        } else {
-          throw new UnsupportedOperationException(format + " signing not supported by rekor");
-        }
         byte[] content;
         try {
             File fileToSign = inputFile;
@@ -85,21 +68,28 @@ public class Sign extends AbstractSigstoreMojo {
         }
         String signature = signContent(content, keypair.getPrivate());
         // TODO save to outputSignature
-        return submitToRekor(format, content, signature, keypair);
+        return submitToRekor(content, signature, keypair);
     }
 
-    private URL submitToRekor(String format, byte[] content, String signature, KeyPair keypair) throws MojoExecutionException {
-        // https://github.com/sigstore/rekor/blob/main/pkg/types/rekord/v0.0.1/rekord_v0_0_1_schema.json
-        // TODO should we switch to hashedrekord? notice: it has no support for the 4 detached signature formats 
-        String contentB64 = Base64.getEncoder().encodeToString(content);
+    private URL submitToRekor(byte[] content, String signature, KeyPair keypair) throws MojoExecutionException {
+        // https://github.com/sigstore/rekor/blob/main/pkg/types/hashedrekord/v0.0.1/hashedrekord_v0_0_1_schema.json
+        Map<String, Object> hashContent = new HashMap<>();
+        hashContent.put("algorithm", "sha256");
+        hashContent.put("value", new DigestUtils(SHA_256).digestAsHex(content));
+
         Map<String, Object> dataContent = new HashMap<>();
-        dataContent.put("content", contentB64); // could be url
+        dataContent.put("hash", hashContent);
 
         Map<String, Object> publicKeyContent = new HashMap<>();
-        publicKeyContent.put("content", Base64.getEncoder().encodeToString(keypair.getPublic().getEncoded())); // rekor feedback: invalid public key: failure decoding PEM
+        final String lineSeparator = System.getProperty("line.separator");
+        Base64.Encoder encoder = Base64.getMimeEncoder(64, lineSeparator.getBytes());
+        byte[] rawKeyText = keypair.getPublic().getEncoded();
+        String encodedKeyText = new String(encoder.encode(rawKeyText));
+        String prettifiedKey = "-----BEGIN PUBLIC KEY-----" + lineSeparator + encodedKeyText + lineSeparator
+                + "-----END PUBLIC KEY-----";
+        publicKeyContent.put("content", Base64.getEncoder().encodeToString(prettifiedKey.getBytes()));
 
         Map<String, Object> signatureContent = new HashMap<>();
-        signatureContent.put("format", format); // "enum": [ "pgp", "minisign", "x509", "ssh" ]
         signatureContent.put("publicKey", publicKeyContent);
         signatureContent.put("content", signature);
 
@@ -107,6 +97,6 @@ public class Sign extends AbstractSigstoreMojo {
         specContent.put("signature", signatureContent); // format publicKey content
         specContent.put("data", dataContent);
 
-        return submitToRekor("rekord", specContent);
+        return submitToRekor("hashedrekord", specContent);
     }
 }

@@ -46,31 +46,6 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <groupId>net.nicoulaj.maven.plugins</groupId>
-        <artifactId>checksum-maven-plugin</artifactId>
-        <version>1.10</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>files</goal>
-            </goals>
-          </execution>
-        </executions>
-        <configuration>
-          <fileSets>
-            <fileSet>
-              <directory>${project.build.directory}</directory>
-              <includes>
-                <include>*.jar</include>
-              </includes>
-            </fileSet>
-          </fileSets>
-          <algorithms>
-            <algorithm>SHA-256</algorithm>
-          </algorithms>
-        </configuration>
-      </plugin>
     </plugins>
     <pluginManagement>
       <plugins>
