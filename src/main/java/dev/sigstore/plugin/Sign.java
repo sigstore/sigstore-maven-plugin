@@ -52,8 +52,14 @@ public class Sign extends AbstractSigstoreMojo {
     /**
      * Location of the signature
      */
-    @Parameter(defaultValue = "${project.build.directory}/signature.sig", property = "output-signature", required = true)
+    @Parameter(defaultValue = "${project.build.directory}/signature.sig", property = "output-signature")
     private File outputSignature;
+
+    /**
+     * Create a rekord instead of a hashedrekord
+     */
+    @Parameter(defaultValue = "false", property = "rekord")
+    private boolean rekord;
 
     public URL signAndsubmitToRekor(KeyPair keypair, CertPath certs) throws MojoExecutionException {
         byte[] content;
@@ -77,12 +83,16 @@ public class Sign extends AbstractSigstoreMojo {
 
     private URL submitToRekor(byte[] content, String signature, KeyPair keypair) throws MojoExecutionException {
         // https://github.com/sigstore/rekor/blob/main/pkg/types/hashedrekord/v0.0.1/hashedrekord_v0_0_1_schema.json
+        // https://github.com/sigstore/rekor/blob/main/pkg/types/rekord/v0.0.1/rekord_v0_0_1_schema.json
         Map<String, Object> hashContent = new HashMap<>();
         hashContent.put("algorithm", "sha256");
         hashContent.put("value", new DigestUtils(SHA_256).digestAsHex(content));
 
         Map<String, Object> dataContent = new HashMap<>();
         dataContent.put("hash", hashContent);
+        if (rekord) {
+            dataContent.put("content", Base64.getEncoder().encodeToString(content)); // could not avoid to send content: shouldn't sha256 be sufficient?
+        }
 
         Map<String, Object> publicKeyContent = new HashMap<>();
         final String lineSeparator = System.getProperty("line.separator");
@@ -94,6 +104,9 @@ public class Sign extends AbstractSigstoreMojo {
         publicKeyContent.put("content", Base64.getEncoder().encodeToString(prettifiedKey.getBytes()));
 
         Map<String, Object> signatureContent = new HashMap<>();
+        if (rekord) {
+            signatureContent.put("format", "x509"); // rekord also supports "pgp", "minisign" and "ssh"
+        }
         signatureContent.put("publicKey", publicKeyContent);
         signatureContent.put("content", signature);
 
@@ -101,6 +114,6 @@ public class Sign extends AbstractSigstoreMojo {
         specContent.put("signature", signatureContent); // format publicKey content
         specContent.put("data", dataContent);
 
-        return submitToRekor("hashedrekord", specContent);
+        return submitToRekor(rekord ? "rekord" : "hashedrekord", specContent);
     }
 }

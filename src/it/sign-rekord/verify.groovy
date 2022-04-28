@@ -15,7 +15,7 @@
 File cert = new File( basedir, "target/signingCert.pem" );
 assert cert.isFile()
 
-File outputJar = new File( basedir, "target/sign-it-1.0-SNAPSHOT.jar" );
+File outputJar = new File( basedir, "target/sign-rekord-it-1.0-SNAPSHOT.jar" );
 assert outputJar.isFile()
 
 File sig = new File( basedir, "target/signature.sig" );
@@ -24,4 +24,4 @@ assert sig.isFile()
 File log = new File( basedir, "build.log" );
 String content = log.text
 content = content.substring(content.indexOf('[DEBUG] submitting to rekor:'))
-assert content.contains('"kind":"hashedrekord"')
+assert content.contains('"kind":"rekord"')
