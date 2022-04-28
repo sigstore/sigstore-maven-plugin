@@ -67,7 +67,11 @@ public class Sign extends AbstractSigstoreMojo {
             throw new MojoExecutionException("Could not read " + inputFile, ioe);
         }
         String signature = signContent(content, keypair.getPrivate());
-        // TODO save to outputSignature
+        try {
+            Files.writeString(outputSignature.toPath(), signature);
+        } catch (IOException ioe) {
+          throw new MojoExecutionException("Could not save signature to " + outputSignature, ioe);
+        }
         return submitToRekor(content, signature, keypair);
     }
 
