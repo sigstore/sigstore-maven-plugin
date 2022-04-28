@@ -219,7 +219,7 @@ public class Sign extends AbstractMojo {
         writeSigningCertToFile(certs, outputSigningCert);
 
         // submit signed jar to rekor
-        submitToRekor(signedJarBytes);
+        submitJarToRekor(signedJarBytes);
     }
 
     /**
@@ -531,23 +531,42 @@ public class Sign extends AbstractMojo {
     * @return       The URL where the entry in the transparency log can be seen for this signature/key combination
     * @throws MojoExecutionException If any exception happened during interaction with the Rekor instance
     */
-    public URL submitToRekor(byte[] jarBytes) throws MojoExecutionException {
+    public URL submitJarToRekor(byte[] jarBytes) throws MojoExecutionException {
+        // https://github.com/sigstore/rekor/blob/main/pkg/types/jar/v0.0.1/jar_v0_0_1_schema.json
+        String jarB64 = Base64.getEncoder().encodeToString(jarBytes);
+        Map<String, Object> archiveContent = new HashMap<>();
+        archiveContent.put("content", jarB64); // could be url + hash instead
+        Map<String, Object> specContent = new HashMap<>();
+        specContent.put("archive", archiveContent);
+
+        return submitToRekor("jar", specContent);
+    }
+
+    /**
+    * Submits the content spec to a Rekor transparency log using defined
+    * <a href="https://github.com/sigstore/rekor/blob/main/pkg/types">rekor-supported type</a>.
+    *
+    * @param  kind The kind of rekor entry
+    * @param  spec The rekor entry spec
+    * @return       The URL where the entry in the transparency log can be seen for this signature/key combination
+    * @throws MojoExecutionException If any exception happened during interaction with the Rekor instance
+    */
+    protected URL submitToRekor(String kind, Map<String, Object> spec) throws MojoExecutionException {
         try {
             HttpTransport httpTransport = getHttpTransport();
 
-            String jarB64 = Base64.getEncoder().encodeToString(jarBytes);
             Map<String, Object> rekorPostContent = new HashMap<>();
-            Map<String, Object> specContent = new HashMap<>();
-            Map<String, Object> archiveContent = new HashMap<>();
-            archiveContent.put("content", jarB64); // could be url + hash instead
-            specContent.put("archive", archiveContent);
-
-            rekorPostContent.put("kind", "jar"); // https://github.com/sigstore/rekor/blob/main/pkg/types/jar/v0.0.1/jar_v0_0_1_schema.json
+            rekorPostContent.put("kind", kind); 
             rekorPostContent.put("apiVersion", "0.0.1");
-            rekorPostContent.put("spec", specContent);
+            rekorPostContent.put("spec", spec);
+
             JsonHttpContent rekorJsonContent = new JsonHttpContent(new GsonFactory(), rekorPostContent);
-            ByteArrayOutputStream rekorStream = new ByteArrayOutputStream();
-            rekorJsonContent.writeTo(rekorStream);
+
+            if (getLog().isDebugEnabled()) {
+                ByteArrayOutputStream rekorStream = new ByteArrayOutputStream();
+                rekorJsonContent.writeTo(rekorStream);
+                getLog().debug("submitting to rekor: " + rekorStream.toString());
+            }
 
             GenericUrl rekorPostUrl = new GenericUrl(rekorInstanceURL + "/api/v1/log/entries");
             HttpRequest rekorReq = httpTransport.createRequestFactory().buildPostRequest(rekorPostUrl, rekorJsonContent);
@@ -561,7 +580,7 @@ public class Sign extends AbstractMojo {
             }
 
             URL rekorEntryUrl = new URL(rekorInstanceURL, rekorResp.getHeaders().getLocation());
-            getLog().info(String.format("Created entry in transparency log for JAR @ '%s'", rekorEntryUrl));
+            getLog().info(String.format("Created %s entry in transparency log @ '%s'", kind, rekorEntryUrl));
             return rekorEntryUrl;
         } catch (Exception e) {
             throw new MojoExecutionException(
