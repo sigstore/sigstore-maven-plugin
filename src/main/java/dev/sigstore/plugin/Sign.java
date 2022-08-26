@@ -29,17 +29,14 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.net.URL;
 import java.security.cert.CertPath;
-import java.security.cert.CertificateFactory;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
-import java.security.cert.X509Certificate;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -47,7 +44,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -64,13 +60,10 @@ import com.google.api.client.auth.openidconnect.IdTokenVerifier;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
 import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
 import com.google.api.client.json.JsonFactory;
-import com.google.api.client.util.PemReader;
-import com.google.api.client.util.PemReader.Section;
 import com.google.api.client.util.store.DataStoreFactory;
 import com.google.api.client.util.store.MemoryDataStoreFactory;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.InvalidObjectException;
 import java.util.List;
 
@@ -83,6 +76,8 @@ import com.google.api.client.http.json.JsonHttpContent;
 import com.google.api.client.json.gson.GsonFactory;
 
 import jdk.security.jarsigner.JarSigner;
+
+import static dev.sigstore.plugin.Utils.getCertPath;
 
 /**
  * Goal which:<ul>
@@ -408,22 +403,7 @@ public class Sign extends AbstractMojo {
             }
 
             getLog().info("parsing signing certificate");
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            ArrayList<X509Certificate> certList = new ArrayList<>();
-            PemReader pemReader = new PemReader(new InputStreamReader(resp.getContent()));
-            while (true) {
-                Section section = pemReader.readNextSection();
-                if (section == null) {
-                    break;
-                }
-
-                byte[] certBytes = section.getBase64DecodedBytes();
-                certList.add((X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes)));
-            }
-            if (certList.isEmpty()) {
-                throw new IOException("no certificates were found in response from Fulcio instance");
-            }
-            return cf.generateCertPath(certList);
+            return getCertPath(resp.getContent());
         } catch (Exception e) {
             throw new MojoExecutionException(String.format("Error obtaining signing certificate from Fulcio @%s:", fulcioInstanceURL), e);
         }
