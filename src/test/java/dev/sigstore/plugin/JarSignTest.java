@@ -15,9 +15,7 @@
 
 package dev.sigstore.plugin;
 
-import org.apache.maven.plugin.testing.MojoRule;
 import org.apache.maven.plugin.testing.WithoutMojo;
-import org.junit.Rule;
 import static org.junit.Assert.*;
 
 import java.security.KeyPair;
@@ -31,7 +29,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Enclosed.class)
-public class SignTest
+public class JarSignTest
 {
     /*
     @Rule
@@ -73,7 +71,7 @@ public class SignTest
         @WithoutMojo
         @Test
         public void testGenerateKeypair() {
-            Sign signToTest = new Sign();
+            JarSign signToTest = new JarSign();
             try {
                 signToTest.generateKeyPair(signAlg, signAlgParams);
             } catch (Exception e) {
@@ -94,7 +92,7 @@ public class SignTest
 
         @Parameters(name = "{index}: {0} {1})")
         public static Iterable<Object[]> emailAndKeysToTest() {
-            Sign sign = new Sign();
+            JarSign sign = new JarSign();
             KeyPair kp;
             try {
                 kp = sign.generateKeyPair("EC", "secp256r1");
@@ -124,7 +122,7 @@ public class SignTest
         @WithoutMojo
         @Test
         public void testSignEmailAddress() {
-            Sign signToTest = new Sign();
+            JarSign signToTest = new JarSign();
             try {
                 signToTest.signEmailAddress(emailAddress, privateKey);
             } catch (Exception e) {
