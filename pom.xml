@@ -103,7 +103,7 @@
    <dependency>
      <groupId>com.google.http-client</groupId>
      <artifactId>google-http-client-apache-v2</artifactId>
-     <version>1.42.3</version><!-- keep in sync with sigstore-java -->
+     <version>1.43.3</version><!-- keep in sync with sigstore-java -->
    </dependency>
    <dependency>
       <groupId>commons-io</groupId>
