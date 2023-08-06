@@ -196,7 +196,7 @@ public class JarSign extends AbstractMojo {
     /**
      * URL of Trusted Timestamp Authority (RFC3161 compliant)
      */
-    @Parameter(defaultValue = "https://rekor.sigstore.dev/api/v1/timestamp", property = "tsa-url", required = true)
+    @Parameter(property = "tsa-url")
     private URL tsaURL;
 
     public void execute() throws MojoExecutionException {
@@ -464,7 +464,7 @@ public class JarSign extends AbstractMojo {
                     .signatureAlgorithm("SHA256withECDSA").setProperty("internalsf", "true").signerName(signerName)
                     .eventHandler(progressLogger);
 
-            if (tsaURL.toString().equals("")) {
+            if (tsaURL != null && !tsaURL.toString().equals("")) {
                 jsb = jsb.tsa(tsaURL.toURI());
             }
 
