@@ -11,7 +11,7 @@ sign
       <plugin>
         <groupId>dev.sigstore</groupId>
         <artifactId>sigstore-maven-plugin</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>0.4.0-SNAPSHOT</version>
         <executions>
           <execution>
             <id>sign</id>
@@ -44,7 +44,7 @@ Full `jarsign` goal documentation is [available here](https://sigstore.github.io
       <plugin>
         <groupId>dev.sigstore</groupId>
         <artifactId>sigstore-maven-plugin</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>0.4.0-SNAPSHOT</version>
         <executions>
           <execution>
             <id>sigstore-jarsign</id>

@@ -21,7 +21,7 @@
 
   <groupId>dev.sigstore</groupId>
   <artifactId>sigstore-maven-plugin</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>0.4.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
 
   <name>sigstore Maven Plugin</name>
@@ -76,16 +76,38 @@
     <maven.version>3.8.4</maven.version>
   </properties>
 
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>3.22.0</version><!-- keep in sync with sigstore-java -->
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>dev.sigstore</groupId>
+        <artifactId>sigstore-java</artifactId>
+        <version>0.4.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>dev.sigstore</groupId>
+        <artifactId>sigstore-java</artifactId>
+        <version>0.4.0</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>dev.sigstore</groupId>
       <artifactId>sigstore-java</artifactId>
-      <version>0.4.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
-      <version>3.22.0</version><!-- keep in sync with sigstore-java -->
       <scope>runtime</scope>
     </dependency>
     <dependency>
@@ -95,17 +117,15 @@
     </dependency>
 
     <!-- jarsign -->
-   <dependency>
-     <groupId>com.google.oauth-client</groupId>
-     <artifactId>google-oauth-client-jetty</artifactId>
-     <version>1.34.1</version><!-- keep in sync with sigstore-java -->
-   </dependency>
-   <dependency>
-     <groupId>com.google.http-client</groupId>
-     <artifactId>google-http-client-apache-v2</artifactId>
-     <version>1.42.3</version><!-- keep in sync with sigstore-java -->
-   </dependency>
-   <dependency>
+    <dependency>
+      <groupId>com.google.oauth-client</groupId>
+      <artifactId>google-oauth-client-jetty</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.google.http-client</groupId>
+      <artifactId>google-http-client-apache-v2</artifactId>
+    </dependency>
+    <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
       <version>2.11.0</version>
