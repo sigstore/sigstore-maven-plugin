@@ -19,12 +19,14 @@
 package dev.sigstore.plugin;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
 import dev.sigstore.KeylessSignature;
 import dev.sigstore.KeylessSigner;
 import dev.sigstore.bundle.BundleFactory;
+
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -43,6 +45,7 @@ import org.codehaus.plexus.util.FileUtils;
  */
 @Mojo(name = "sign", defaultPhase = LifecyclePhase.VERIFY, threadSafe = true)
 public class SigstoreSignAttachedMojo extends AbstractMojo {
+    private static final String FULCIO_ISSUER_OID = "1.3.6.1.4.1.57264.1.1";
 
     /**
      * Skip doing the gpg signing.
@@ -104,12 +107,22 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
                 signer = KeylessSigner.builder().sigstorePublicDefaults().build();
             }
 
+            X509Certificate prevCert = null;
             for (FilesCollector.Item item : items) {
                 File fileToSign = item.getFile();
 
                 getLog().info("Signing " + fileToSign);
                 long start = System.currentTimeMillis();
                 KeylessSignature signature = signer.signFile(fileToSign.toPath());
+
+                X509Certificate cert = (X509Certificate)
+                        signature.getCertPath().getCertificates().get(0);
+                if (!cert.equals(prevCert)) {
+                    prevCert = cert;
+                    long duration = (cert.getNotAfter().getTime() - cert.getNotBefore().getTime()) / 1000;
+
+                    getLog().info("  Fulcio certificate (valid for " + duration/60 + " m) obtained for " + cert.getSubjectAlternativeNames().iterator().next().get(1) + " (by " + getFulcioIssuer(cert) + " IdP)");
+                }
 
                 // sigstore signature in bundle format (json string)
                 String sigstoreBundle = BundleFactory.createBundle(signature);
@@ -118,20 +131,19 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
                 FileUtils.fileWrite(signatureFile, "UTF-8", sigstoreBundle);
 
                 long duration = System.currentTimeMillis() - start;
-                getLog().info("        > " + signatureFile.getName() + " in " + duration + " ms");
+                getLog().info("  > Rekor entry " + signature.getEntry().get().getLogIndex() + " obtained in " + duration + " ms, saved to " + signatureFile.getName());
 
                 projectHelper.attachArtifact(
                         project, item.getExtension() + ".sigstore", item.getClassifier(), signatureFile);
 
-                getLog().info("          Rekor logIndex: "
-                        + signature.getEntry().get().getLogIndex());
-                X509Certificate cert = (X509Certificate)
-                        signature.getCertPath().getCertificates().get(0);
-                getLog().info("          Certificate Issuer DN: " + cert.getIssuerDN());
-                getLog().info("                      Subject Alternative Names: " + cert.getSubjectAlternativeNames());
             }
         } catch (Exception e) {
             throw new MojoExecutionException("Error while signing with sigstore", e);
         }
+    }
+
+    private String getFulcioIssuer(X509Certificate cert) {
+        byte[] extensionValue = cert.getExtensionValue(FULCIO_ISSUER_OID);
+        return new String(extensionValue, StandardCharsets.UTF_8);
     }
 }
