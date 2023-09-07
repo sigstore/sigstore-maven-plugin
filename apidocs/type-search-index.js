@@ -1,0 +1,1 @@
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"dev.sigstore.sigstore_maven_plugin","l":"HelpMojo"},{"p":"dev.sigstore.plugin","l":"JarSign"},{"p":"dev.sigstore.plugin","l":"SigstoreSignAttachedMojo"}];updateSearchResults();
