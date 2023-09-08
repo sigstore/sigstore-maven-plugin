@@ -82,7 +82,7 @@
       <dependency>
         <groupId>com.google.protobuf</groupId>
         <artifactId>protobuf-java</artifactId>
-        <version>3.22.0</version><!-- keep in sync with sigstore-java -->
+        <version>3.24.3</version><!-- keep in sync with sigstore-java -->
         <type>pom</type>
         <scope>import</scope>
       </dependency>
