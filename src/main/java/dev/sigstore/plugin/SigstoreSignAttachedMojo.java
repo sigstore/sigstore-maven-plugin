@@ -19,7 +19,6 @@
 package dev.sigstore.plugin;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
@@ -45,8 +44,6 @@ import org.codehaus.plexus.util.FileUtils;
  */
 @Mojo(name = "sign", defaultPhase = LifecyclePhase.VERIFY, threadSafe = true)
 public class SigstoreSignAttachedMojo extends AbstractMojo {
-    private static final String FULCIO_ISSUER_OID = "1.3.6.1.4.1.57264.1.1";
-
     /**
      * Skip doing the gpg signing.
      */
@@ -121,7 +118,8 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
                     prevCert = cert;
                     long duration = (cert.getNotAfter().getTime() - cert.getNotBefore().getTime()) / 1000;
 
-                    getLog().info("  Fulcio certificate (valid for " + duration/60 + " m) obtained for " + cert.getSubjectAlternativeNames().iterator().next().get(1) + " (by " + getFulcioIssuer(cert) + " IdP)");
+                    getLog().info("  Fulcio certificate (valid for " + duration/60 + " m) obtained for " + cert.getSubjectAlternativeNames().iterator().next().get(1)
+                             + " (by " + FulcioOidHelper.getIssuerV2(cert) + " IdP)");
                 }
 
                 // sigstore signature in bundle format (json string)
@@ -140,10 +138,5 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
         } catch (Exception e) {
             throw new MojoExecutionException("Error while signing with sigstore", e);
         }
-    }
-
-    private String getFulcioIssuer(X509Certificate cert) {
-        byte[] extensionValue = cert.getExtensionValue(FULCIO_ISSUER_OID);
-        return new String(extensionValue, StandardCharsets.UTF_8);
     }
 }
