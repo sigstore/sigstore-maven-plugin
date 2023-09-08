@@ -20,7 +20,7 @@
 
   <groupId>dev.sigstore</groupId>
   <artifactId>sigstore-maven-plugin</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
 
   <name>sigstore Maven Plugin</name>
@@ -55,7 +55,7 @@
     <connection>scm:git:https://github.com/sigstore/sigstore-maven-plugin.git</connection>
     <developerConnection>scm:git:https://github.com/sigstore/sigstore-maven-plugin.git</developerConnection>
     <url>https://github.com/sigstore/sigstore-maven-plugin/tree/${project.scm.tag}</url>
-    <tag>sigstore-maven-plugin-0.4.0</tag>
+    <tag>main</tag>
   </scm>
   <issueManagement>
     <system>GitHub</system>
@@ -82,7 +82,7 @@
     <maven.compiler.release>11</maven.compiler.release>
     <maven.version>3.8.8</maven.version>
     <maven.plugin-tools.version>3.9.0</maven.plugin-tools.version>
-    <project.build.outputTimestamp>2023-09-08T19:09:17Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2023-09-08T19:09:24Z</project.build.outputTimestamp>
   </properties>
 
   <dependencyManagement>
