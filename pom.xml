@@ -27,6 +27,7 @@
   <name>sigstore Maven Plugin</name>
 
   <url>https://sigstore.github.io/sigstore-maven-plugin/</url>
+  <inceptionYear>2021</inceptionYear>
 
   <organization>
     <name>sigstore</name>
@@ -39,6 +40,13 @@
       <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
     </license>
   </licenses>
+
+  <developers>
+    <developer>
+      <organization>Sigstore authors</organization>
+      <organizationUrl>https://sigstore.dev</organizationUrl>
+    </developer>
+  </developers>
 
   <prerequisites>
     <maven>${maven.version}</maven>
