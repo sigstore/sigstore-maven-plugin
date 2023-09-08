@@ -15,13 +15,12 @@
  limitations under the License.
 -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>dev.sigstore</groupId>
   <artifactId>sigstore-maven-plugin</artifactId>
-  <version>0.4.0-SNAPSHOT</version>
+  <version>0.4.0</version>
   <packaging>maven-plugin</packaging>
 
   <name>sigstore Maven Plugin</name>
@@ -56,7 +55,7 @@
     <connection>scm:git:https://github.com/sigstore/sigstore-maven-plugin.git</connection>
     <developerConnection>scm:git:https://github.com/sigstore/sigstore-maven-plugin.git</developerConnection>
     <url>https://github.com/sigstore/sigstore-maven-plugin/tree/${project.scm.tag}</url>
-    <tag>main</tag>
+    <tag>sigstore-maven-plugin-0.4.0</tag>
   </scm>
   <issueManagement>
     <system>GitHub</system>
@@ -83,7 +82,7 @@
     <maven.compiler.release>11</maven.compiler.release>
     <maven.version>3.8.8</maven.version>
     <maven.plugin-tools.version>3.9.0</maven.plugin-tools.version>
-    <project.build.outputTimestamp>2023-08-24T15:09:17Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2023-09-08T19:09:17Z</project.build.outputTimestamp>
   </properties>
 
   <dependencyManagement>
@@ -329,8 +328,7 @@
             </goals>
             <configuration>
               <target>
-                <copy file="${project.basedir}/README.md"
-                      tofile="${project.build.directory}/generated-site/markdown/index.md"/>
+                <copy file="${project.basedir}/README.md" tofile="${project.build.directory}/generated-site/markdown/index.md" />
               </target>
             </configuration>
           </execution>
