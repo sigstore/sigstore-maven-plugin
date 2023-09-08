@@ -25,7 +25,7 @@
   <packaging>maven-plugin</packaging>
 
   <name>sigstore Maven Plugin</name>
-
+  <description>A Maven plugin to sign with sigstore.</description>
   <url>https://sigstore.github.io/sigstore-maven-plugin/</url>
   <inceptionYear>2021</inceptionYear>
 
