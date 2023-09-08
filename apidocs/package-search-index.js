@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"dev.sigstore.plugin"},{"l":"dev.sigstore.sigstore_maven_plugin"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"l":"dev.sigstore.plugin"},{"l":"dev.sigstore.sigstore_maven_plugin"}]
