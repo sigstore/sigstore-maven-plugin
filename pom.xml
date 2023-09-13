@@ -460,9 +460,9 @@
             </executions>
           </plugin>
           <plugin>
-            <groupId>io.github.hboutemy</groupId><!-- use dev.sigstore when released -->
+            <groupId>dev.sigstore</groupId>
             <artifactId>sigstore-maven-plugin</artifactId>
-            <version>1.0.0-beta-3</version>
+            <version>0.4.0</version>
             <executions>
               <execution>
                 <id>sigstore-sign-release-artifacts</id>
