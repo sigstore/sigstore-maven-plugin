@@ -1,6 +1,8 @@
 sigstore-maven-plugin
 =====================
 
+[![Maven Central](https://img.shields.io/maven-central/v/dev.sigstore/sigstore-maven-plugin.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/dev.sigstore/sigstore-maven-plugin)
+
 This is a Maven plugin that can be used to use the "keyless" signing paradigm supported by Sigstore.
 This plugin is still in early phases, then has known limitations described below.
 
@@ -11,7 +13,7 @@ sign
       <plugin>
         <groupId>dev.sigstore</groupId>
         <artifactId>sigstore-maven-plugin</artifactId>
-        <version>0.4.0-SNAPSHOT</version>
+        <version>0.4.0</version>
         <executions>
           <execution>
             <id>sign</id>
@@ -44,7 +46,7 @@ Full `jarsign` goal documentation is [available here](https://sigstore.github.io
       <plugin>
         <groupId>dev.sigstore</groupId>
         <artifactId>sigstore-maven-plugin</artifactId>
-        <version>0.4.0-SNAPSHOT</version>
+        <version>0.4.0</version>
         <executions>
           <execution>
             <id>sigstore-jarsign</id>
