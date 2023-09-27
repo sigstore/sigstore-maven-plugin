@@ -273,6 +273,8 @@
           <version>3.0.1</version>
           <configuration>
             <releaseProfiles>release</releaseProfiles>
+            <scmReleaseCommitComment>@{prefix} prepare release @{releaseLabel}&#xA;&#xA;Signed-off-by: Maven Release Plugin &lt;release@github.com&gt;</scmReleaseCommitComment>
+            <scmDevelopmentCommitComment>@{prefix} prepare for next development iteration&#xA;&#xA;Signed-off-by: Maven Release Plugin &lt;release@github.com&gt;</scmDevelopmentCommitComment>
           </configuration>
         </plugin>
       </plugins>
