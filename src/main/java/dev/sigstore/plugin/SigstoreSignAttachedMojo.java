@@ -18,13 +18,12 @@
  */
 package dev.sigstore.plugin;
 
+import dev.sigstore.bundle.Bundle;
 import java.io.File;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
-import dev.sigstore.KeylessSignature;
 import dev.sigstore.KeylessSigner;
-import dev.sigstore.bundle.BundleFactory;
 
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -44,15 +43,23 @@ import org.codehaus.plexus.util.FileUtils;
  */
 @Mojo(name = "sign", defaultPhase = LifecyclePhase.VERIFY, threadSafe = true)
 public class SigstoreSignAttachedMojo extends AbstractMojo {
+
+    private static final String BUNDLE_EXTENSION = ".sigstore.json";
+
+    // TODO: this can potentially be derived from mvn-gpg-plugin:FilesCollector.java,
+    //   but that requires a change in that plugin before it makes sense here.
+    private static final String DEFAULT_EXCLUDES[] =
+        new String[] {"**/*.md5", "**/*.sha1", "**/*.sha256", "**/*.sha512", "**/*.asc", "**/*.sigstore.json"};
+
     /**
-     * Skip doing the gpg signing.
+     * Skip doing the sigstore signing.
      */
     @Parameter(property = "sigstore.skip", defaultValue = "false")
     private boolean skip;
 
     /**
      * A list of files to exclude from being signed. Can contain Ant-style wildcards and double wildcards. The default
-     * excludes are <code>**&#47;*.md5 **&#47;*.sha1 **&#47;*.sha256 **&#47;*.sha512 **&#47;*.asc **&#47;*.sigstore</code>.
+     * excludes are <code>**&#47;*.md5 **&#47;*.sha1 **&#47;*.sha256 **&#47;*.sha512 **&#47;*.asc **&#47;*.sigstore.json</code>.
      */
     @Parameter
     private String[] excludes;
@@ -86,7 +93,7 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
         // Collect files to sign
         // ----------------------------------------------------------------------------
 
-        FilesCollector collector = new FilesCollector(project, excludes, getLog());
+        FilesCollector collector = new FilesCollector(project, (excludes == null) ? DEFAULT_EXCLUDES : excludes, getLog());
         List<FilesCollector.Item> items = collector.collect();
 
         // ----------------------------------------------------------------------------
@@ -110,10 +117,10 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
 
                 getLog().info("Signing " + fileToSign);
                 long start = System.currentTimeMillis();
-                KeylessSignature signature = signer.signFile(fileToSign.toPath());
+                Bundle bundle = signer.signFile(fileToSign.toPath());
 
                 X509Certificate cert = (X509Certificate)
-                        signature.getCertPath().getCertificates().get(0);
+                        bundle.getCertPath().getCertificates().get(0);
                 if (!cert.equals(prevCert)) {
                     prevCert = cert;
                     long duration = (cert.getNotAfter().getTime() - cert.getNotBefore().getTime()) / 1000;
@@ -122,17 +129,14 @@ public class SigstoreSignAttachedMojo extends AbstractMojo {
                              + " (by " + FulcioOidHelper.getIssuerV2(cert) + " IdP)");
                 }
 
-                // sigstore signature in bundle format (json string)
-                String sigstoreBundle = BundleFactory.createBundle(signature);
-
-                File signatureFile = new File(fileToSign + ".sigstore");
-                FileUtils.fileWrite(signatureFile, "UTF-8", sigstoreBundle);
+                File bundleFile = new File(fileToSign + BUNDLE_EXTENSION);
+                FileUtils.fileWrite(bundleFile, "UTF-8", bundle.toJson());
 
                 long duration = System.currentTimeMillis() - start;
-                getLog().info("  > Rekor entry " + signature.getEntry().get().getLogIndex() + " obtained in " + duration + " ms, saved to " + signatureFile.getName());
+                getLog().info("  > Rekor entry " + bundle.getEntries().get(0).getLogIndex() + " obtained in " + duration + " ms, saved to " + bundleFile.getName());
 
                 projectHelper.attachArtifact(
-                        project, item.getExtension() + ".sigstore", item.getClassifier(), signatureFile);
+                        project, item.getExtension() + BUNDLE_EXTENSION, item.getClassifier(), bundleFile);
 
             }
         } catch (Exception e) {

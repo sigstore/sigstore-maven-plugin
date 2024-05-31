@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-File cert = new File( basedir, "target/signingCert.pem" );
+File cert = new File( basedir, "target/simple-it-1.0-SNAPSHOT.jar.sigstore.json" );
 
 assert cert.isFile()
