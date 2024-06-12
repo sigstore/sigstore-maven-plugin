@@ -81,7 +81,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>11</maven.compiler.release>
     <maven.version>3.8.8</maven.version>
-    <maven.plugin-tools.version>3.10.1</maven.plugin-tools.version>
+    <maven.plugin-tools.version>3.10.2</maven.plugin-tools.version>
     <project.build.outputTimestamp>2023-09-08T19:09:24Z</project.build.outputTimestamp>
   </properties>
 
